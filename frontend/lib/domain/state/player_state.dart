@@ -22,6 +22,7 @@ class PlayerState {
     required this.error,
   });
 
+  /// [clearArtworkUrl] 为 true 时将 artworkUrl 重置为 null（因为 String? 的 copyWith 无法通过传 null 来清除）
   PlayerState copyWith({
     Song? currentSong,
     bool? isPlaying,
@@ -30,6 +31,7 @@ class PlayerState {
     List<LyricLine>? lyrics,
     int? currentLyricIndex,
     String? artworkUrl,
+    bool clearArtworkUrl = false,
     String? error,
   }) {
     return PlayerState(
@@ -39,7 +41,7 @@ class PlayerState {
       duration: duration ?? this.duration,
       lyrics: lyrics ?? this.lyrics,
       currentLyricIndex: currentLyricIndex ?? this.currentLyricIndex,
-      artworkUrl: artworkUrl ?? this.artworkUrl,
+      artworkUrl: clearArtworkUrl ? null : (artworkUrl ?? this.artworkUrl),
       error: error,
     );
   }

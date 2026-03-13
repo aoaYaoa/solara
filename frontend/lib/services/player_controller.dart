@@ -106,13 +106,14 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> playSong(Song song, {required String quality}) async {
-    // 立即更新歌曲信息，让 UI 马上响应
+    // 立即更新歌曲信息 + 清除旧封面，让 UI 马上响应
     state = state.copyWith(
       error: null,
       currentSong: song,
       position: Duration.zero,
       lyrics: const [],
       currentLyricIndex: -1,
+      clearArtworkUrl: true,
     );
 
     // 自动同步队列索引：无论从哪里调用 playSong，都保持 currentIndex 正确
