@@ -334,9 +334,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                 ),
-                itemCount: discoverState.leaderboards.length > 6
-                    ? 6
-                    : discoverState.leaderboards.length,
+                itemCount: discoverState.leaderboards.length,
                 itemBuilder: (context, index) {
                   final item = discoverState.leaderboards[index];
                   return _LeaderboardCard(
