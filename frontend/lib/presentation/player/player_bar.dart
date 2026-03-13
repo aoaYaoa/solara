@@ -244,29 +244,27 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color:
-              enabled
-                  ? colorScheme.primary
-                  : colorScheme.onSurface.withOpacity(0.1),
-        ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child: Icon(
-            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            key: ValueKey(isPlaying),
-            color:
-                enabled
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurface.withOpacity(0.3),
-            size: 22,
+    return Material(
+      color: enabled
+          ? colorScheme.primary
+          : colorScheme.onSurface.withOpacity(0.1),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: enabled ? onPressed : null,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Icon(
+              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              key: ValueKey(isPlaying),
+              color: enabled
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurface.withOpacity(0.3),
+              size: 22,
+            ),
           ),
         ),
       ),

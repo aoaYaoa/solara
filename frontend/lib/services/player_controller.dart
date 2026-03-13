@@ -30,6 +30,8 @@ class PlayerController extends StateNotifier<PlayerState> {
   PlayMode Function()? getPlayMode;
   int Function()? getCurrentQueueIndex;
   void Function(int)? setCurrentQueueIndex;
+  String Function()? getQuality;
+  bool _isLoading = false;
 
   PlayerController({
     required this.repository,
@@ -41,6 +43,7 @@ class PlayerController extends StateNotifier<PlayerState> {
     this.getPlayMode,
     this.getCurrentQueueIndex,
     this.setCurrentQueueIndex,
+    this.getQuality,
   }) : super(PlayerState.initial()) {
     // 热重载后原生播放器可能还在播放，先停掉保持状态一致
     if (engine.isPlaying) {
@@ -58,16 +61,14 @@ class PlayerController extends StateNotifier<PlayerState> {
     final queue = getQueue?.call() ?? [];
     final playMode = getPlayMode?.call() ?? PlayMode.list;
     final currentIndex = getCurrentQueueIndex?.call() ?? 0;
-    const quality = '320';
+    final quality = getQuality?.call() ?? '320';
     if (queue.isEmpty) {
-      // 队列为空：单曲循环
       if (state.currentSong != null) {
         playSong(state.currentSong!, quality: quality);
       }
       return;
     }
     if (playMode == PlayMode.single) {
-      // 单曲循环：重播当前歌曲
       if (state.currentSong != null) {
         playSong(state.currentSong!, quality: quality);
       }
@@ -82,6 +83,8 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   void _tick() {
+    // 加载新歌曲期间不更新，避免引擎返回旧歌曲的 position/duration 覆盖新状态
+    if (_isLoading) return;
     final position = engine.position;
     final duration = engine.duration;
     if (position != state.position || duration != state.duration) {
@@ -106,17 +109,21 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> playSong(Song song, {required String quality}) async {
-    // 立即更新歌曲信息 + 清除旧封面，让 UI 马上响应
-    state = state.copyWith(
-      error: null,
+    _isLoading = true;
+
+    // 完整重置状态：直接构造新 PlayerState，避免 copyWith 的 nullable 遗留问题
+    state = PlayerState(
       currentSong: song,
+      isPlaying: state.isPlaying,
       position: Duration.zero,
+      duration: null,
       lyrics: const [],
       currentLyricIndex: -1,
-      clearArtworkUrl: true,
+      artworkUrl: null,
+      error: null,
     );
 
-    // 自动同步队列索引：无论从哪里调用 playSong，都保持 currentIndex 正确
+    // 自动同步队列索引
     final queue = getQueue?.call() ?? [];
     final songIndex = queue.indexWhere((s) => s.id == song.id);
     if (songIndex >= 0) {
@@ -140,9 +147,11 @@ class PlayerController extends StateNotifier<PlayerState> {
         print('[PlayerController] play() error (ignored): $e');
       });
 
+      // 引擎就绪，解除 loading 锁，让 _tick() 开始同步
+      _isLoading = false;
       state = state.copyWith(isPlaying: true);
 
-      // 后台加载歌词和封面
+      // 后台加载歌词
       try {
         final lyricRaw = await repository.fetchLyric(
           songId: song.lyricId.isNotEmpty ? song.lyricId : song.id,
@@ -150,10 +159,9 @@ class PlayerController extends StateNotifier<PlayerState> {
         );
         final lyrics = LyricParser.parse(lyricRaw);
         state = state.copyWith(lyrics: lyrics);
-      } catch (e) {
-        print('[PlayerController] fetchLyric error: $e');
-      }
+      } catch (_) {}
 
+      // 后台加载封面
       try {
         String artworkUrl;
         if (song.picUrl != null && song.picUrl!.isNotEmpty) {
@@ -173,12 +181,11 @@ class PlayerController extends StateNotifier<PlayerState> {
           artworkUrl: artworkUrl,
           duration: engine.duration,
         );
-      } catch (e) {
-        print('[PlayerController] fetchArtwork error: $e');
-      }
+      } catch (_) {}
 
       onSongPlayed?.call(song);
     } catch (e, st) {
+      _isLoading = false;
       print('[PlayerController] playSong error: $e\n$st');
       if (e is AuthRequiredException) {
         auth.logout();
@@ -300,6 +307,7 @@ final playerControllerProvider =
           getPlayMode: () => ref.read(queueStateProvider).playMode,
           getCurrentQueueIndex: () => ref.read(queueStateProvider).currentIndex,
           setCurrentQueueIndex: (index) => ref.read(queueStateProvider.notifier).setCurrentIndex(index),
+          getQuality: () => ref.read(settingsStateProvider).playbackQuality,
         );
 
         // Handle lock screen skip controls
