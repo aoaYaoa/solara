@@ -66,6 +66,11 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       child: CustomScrollView(
         controller: _scrollController,
         slivers: [
+          SliverAppBar(
+            floating: true,
+            title: const Text('发现'),
+            centerTitle: false,
+          ),
           if (state.error != null)
             SliverToBoxAdapter(
               child: Padding(
