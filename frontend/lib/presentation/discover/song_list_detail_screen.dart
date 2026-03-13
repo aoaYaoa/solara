@@ -237,7 +237,8 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                                 playerState.currentSong?.id == song.id) {
                               player.pause();
                             } else {
-                              queue.addSong(song);
+                              queue.addSongs(_songs);
+                              queue.selectSong(song);
                               player.playSong(
                                 song,
                                 quality: settings.playbackQuality,

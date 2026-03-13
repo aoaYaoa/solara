@@ -223,7 +223,8 @@ class _LeaderboardDetailScreenState
                           if (playerState.isPlaying && isCurrent) {
                             player.pause();
                           } else {
-                            queue.addSong(song);
+                            queue.addSongs(_songs);
+                            queue.selectSong(song);
                             player.playSong(
                               song,
                               quality: settings.playbackQuality,
