@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/song.dart';
 import '../domain/state/history_state.dart';
@@ -114,6 +115,13 @@ class PlayerController extends StateNotifier<PlayerState> {
       currentLyricIndex: -1,
     );
 
+    // 自动同步队列索引：无论从哪里调用 playSong，都保持 currentIndex 正确
+    final queue = getQueue?.call() ?? [];
+    final songIndex = queue.indexWhere((s) => s.id == song.id);
+    if (songIndex >= 0) {
+      setCurrentQueueIndex?.call(songIndex);
+    }
+
     // 更新锁屏/通知栏信息
     audioHandler.setNowPlaying(
       title: song.name,
@@ -204,10 +212,13 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> seekTo(Duration position) async {
-    await engine.seek(position);
+    // 先更新状态，避免 _tick() 在 seek 完成前用旧 position 覆盖导致回跳
     final index = _resolveLyricIndex(state.lyrics, position);
     state = state.copyWith(position: position, currentLyricIndex: index);
+    await engine.seek(position);
   }
+
+  static final _random = Random();
 
   Future<void> skipNext({
     required List<Song> queue,
@@ -218,8 +229,13 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (queue.isEmpty) return;
     int nextIndex;
     if (playMode == PlayMode.random) {
-      nextIndex =
-          (currentIndex + 1 + (queue.length * 0.5).round()) % queue.length;
+      if (queue.length <= 1) {
+        nextIndex = 0;
+      } else {
+        do {
+          nextIndex = _random.nextInt(queue.length);
+        } while (nextIndex == currentIndex);
+      }
     } else {
       nextIndex = (currentIndex + 1) % queue.length;
     }
@@ -236,7 +252,13 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (queue.isEmpty) return;
     int prevIndex;
     if (playMode == PlayMode.random) {
-      prevIndex = (currentIndex - 1 + queue.length) % queue.length;
+      if (queue.length <= 1) {
+        prevIndex = 0;
+      } else {
+        do {
+          prevIndex = _random.nextInt(queue.length);
+        } while (prevIndex == currentIndex);
+      }
     } else {
       prevIndex = (currentIndex - 1 + queue.length) % queue.length;
     }
