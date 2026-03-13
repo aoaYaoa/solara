@@ -15,7 +15,23 @@ class FavoritesPanel extends ConsumerWidget {
     final settings = ref.watch(settingsStateProvider);
 
     if (favoritesState.favorites.isEmpty) {
-      return const Center(child: Text('No favorites yet'));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.favorite_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '暂无收藏',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(

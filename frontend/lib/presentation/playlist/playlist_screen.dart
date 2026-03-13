@@ -233,9 +233,20 @@ class PlaylistDetailScreen extends ConsumerWidget {
       body:
           current.songs.isEmpty
               ? Center(
-                child: Text(
-                  '歌单为空，从搜索结果添加歌曲吧',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.music_off_outlined,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '歌单为空，从搜索结果添加歌曲吧',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
               )
               : ListView.builder(
