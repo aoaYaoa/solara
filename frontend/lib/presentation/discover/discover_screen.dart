@@ -14,13 +14,37 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 }
 
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
+  final _scrollController = ScrollController();
+  bool _initialLoaded = false;
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final source = ref.read(settingsStateProvider).searchSource;
-      ref.read(discoverStateProvider.notifier).loadAll(source: source);
+      if (!_initialLoaded) {
+        _initialLoaded = true;
+        final discoverState = ref.read(discoverStateProvider);
+        if (discoverState.songLists.isEmpty && !discoverState.loadingSongLists) {
+          final source = ref.read(settingsStateProvider).searchSource;
+          ref.read(discoverStateProvider.notifier).loadAll(source: source);
+        }
+      }
     });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final source = ref.read(settingsStateProvider).searchSource;
+      ref.read(discoverStateProvider.notifier).loadMoreSongLists(source: source);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -40,6 +64,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           () =>
               ref.read(discoverStateProvider.notifier).loadAll(source: settings.searchSource),
       child: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           if (state.error != null)
             SliverToBoxAdapter(
@@ -80,6 +105,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   final item = state.songLists[index];
                   return _SongListTile(item: item, source: settings.searchSource);
                 }, childCount: state.songLists.length),
+              ),
+            ),
+          if (state.loadingMoreSongLists)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),

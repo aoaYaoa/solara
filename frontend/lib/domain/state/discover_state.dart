@@ -8,6 +8,9 @@ class DiscoverState {
   final List<SongListItem> songLists;
   final bool loadingLeaderboards;
   final bool loadingSongLists;
+  final bool loadingMoreSongLists;
+  final int songListPage;
+  final bool hasMoreSongLists;
   final String? error;
 
   const DiscoverState({
@@ -15,6 +18,9 @@ class DiscoverState {
     this.songLists = const [],
     this.loadingLeaderboards = false,
     this.loadingSongLists = false,
+    this.loadingMoreSongLists = false,
+    this.songListPage = 1,
+    this.hasMoreSongLists = true,
     this.error,
   });
 
@@ -23,6 +29,9 @@ class DiscoverState {
     List<SongListItem>? songLists,
     bool? loadingLeaderboards,
     bool? loadingSongLists,
+    bool? loadingMoreSongLists,
+    int? songListPage,
+    bool? hasMoreSongLists,
     String? error,
     bool clearError = false,
   }) {
@@ -31,6 +40,9 @@ class DiscoverState {
       songLists: songLists ?? this.songLists,
       loadingLeaderboards: loadingLeaderboards ?? this.loadingLeaderboards,
       loadingSongLists: loadingSongLists ?? this.loadingSongLists,
+      loadingMoreSongLists: loadingMoreSongLists ?? this.loadingMoreSongLists,
+      songListPage: songListPage ?? this.songListPage,
+      hasMoreSongLists: hasMoreSongLists ?? this.hasMoreSongLists,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -45,6 +57,8 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     state = state.copyWith(
       loadingLeaderboards: true,
       loadingSongLists: true,
+      songListPage: 1,
+      hasMoreSongLists: true,
       clearError: true,
     );
     await Future.wait([
@@ -66,10 +80,33 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
   Future<void> _loadSongLists({required String source}) async {
     try {
       final repo = _ref.read(solaraRepositoryProvider);
-      final items = await repo.fetchSongList(source: source);
-      state = state.copyWith(songLists: items, loadingSongLists: false);
+      final items = await repo.fetchSongList(source: source, page: 1);
+      state = state.copyWith(
+        songLists: items,
+        loadingSongLists: false,
+        songListPage: 1,
+        hasMoreSongLists: items.length >= 30,
+      );
     } catch (e) {
       state = state.copyWith(loadingSongLists: false, error: '歌单加载失败: $e');
+    }
+  }
+
+  Future<void> loadMoreSongLists({required String source}) async {
+    if (state.loadingMoreSongLists || !state.hasMoreSongLists) return;
+    state = state.copyWith(loadingMoreSongLists: true);
+    try {
+      final repo = _ref.read(solaraRepositoryProvider);
+      final nextPage = state.songListPage + 1;
+      final items = await repo.fetchSongList(source: source, page: nextPage);
+      state = state.copyWith(
+        songLists: [...state.songLists, ...items],
+        loadingMoreSongLists: false,
+        songListPage: nextPage,
+        hasMoreSongLists: items.length >= 30,
+      );
+    } catch (e) {
+      state = state.copyWith(loadingMoreSongLists: false);
     }
   }
 

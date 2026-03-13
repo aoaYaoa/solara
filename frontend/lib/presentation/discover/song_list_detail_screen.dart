@@ -25,31 +25,75 @@ class SongListDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
+  final _scrollController = ScrollController();
   List<Song> _songs = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _page = 1;
+      _hasMore = true;
     });
     try {
       final songs = await ref
           .read(discoverStateProvider.notifier)
-          .fetchSongListDetail(id: widget.item.id, source: widget.source);
-      if (mounted) setState(() => _songs = songs);
+          .fetchSongListDetail(id: widget.item.id, source: widget.source, page: 1);
+      if (mounted) {
+        setState(() {
+          _songs = songs;
+          _hasMore = songs.length >= 30;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    setState(() => _loadingMore = true);
+    try {
+      final nextPage = _page + 1;
+      final songs = await ref
+          .read(discoverStateProvider.notifier)
+          .fetchSongListDetail(id: widget.item.id, source: widget.source, page: nextPage);
+      if (mounted) {
+        setState(() {
+          _songs = [..._songs, ...songs];
+          _page = nextPage;
+          _hasMore = songs.length >= 30;
+        });
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loadingMore = false);
   }
 
   @override
@@ -61,148 +105,167 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
     final favorites = ref.read(favoritesStateProvider.notifier);
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                widget.item.name,
-                style: const TextStyle(fontSize: 14),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              background:
-                  widget.item.coverUrl != null
-                      ? Image.network(
-                        proxyImageUrl(widget.item.coverUrl!),
-                        fit: BoxFit.cover,
-                        errorBuilder:
-                            (_, __, ___) => Container(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              child: Icon(
-                                Icons.queue_music,
-                                size: 60,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                      )
-                      : Container(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.queue_music,
-                          size: 60,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-            ),
-            actions: [
-              if (_songs.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.play_circle_outline),
-                  tooltip: '全部播放',
-                  onPressed: () {
-                    for (final s in _songs) {
-                      queue.addSong(s);
-                    }
-                    player.playSong(
-                      _songs.first,
-                      quality: settings.playbackQuality,
-                    );
-                  },
-                ),
-            ],
-          ),
-          if (widget.item.description != null &&
-              widget.item.description!.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Text(
-                  widget.item.description!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
-                  maxLines: 3,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        edgeOffset: 200,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 200,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                title: Text(
+                  widget.item.name,
+                  style: const TextStyle(fontSize: 14),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                background:
+                    widget.item.coverUrl != null
+                        ? Image.network(
+                          proxyImageUrl(widget.item.coverUrl!),
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) => Container(
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                child: Icon(
+                                  Icons.queue_music,
+                                  size: 60,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                        )
+                        : Container(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.queue_music,
+                            size: 60,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
               ),
+              actions: [
+                if (_songs.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.play_circle_outline),
+                    tooltip: '全部播放',
+                    onPressed: () {
+                      for (final s in _songs) {
+                        queue.addSong(s);
+                      }
+                      player.playSong(
+                        _songs.first,
+                        quality: settings.playbackQuality,
+                      );
+                    },
+                  ),
+              ],
             ),
-          if (_loading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                    const SizedBox(height: 12),
-                    ElevatedButton(onPressed: _load, child: const Text('重试')),
-                  ],
+            if (widget.item.description != null &&
+                widget.item.description!.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(
+                    widget.item.description!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final song = _songs[index];
-                final isFav = favorites.isFavorite(song);
-                return ListTile(
-                  leading: Text(
-                    '${index + 1}',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  title: Text(
-                    song.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Row(
+            if (_loading)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              SliverFillRemaining(
+                child: Center(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          isFav ? Icons.favorite : Icons.favorite_border,
-                        ),
-                        onPressed: () => favorites.toggleFavorite(song),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          playerState.isPlaying &&
-                                  playerState.currentSong?.id == song.id
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color:
-                              playerState.currentSong?.id == song.id
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                        ),
-                        onPressed: () {
-                          if (playerState.isPlaying &&
-                              playerState.currentSong?.id == song.id) {
-                            player.pause();
-                          } else {
-                            queue.addSong(song);
-                            player.playSong(
-                              song,
-                              quality: settings.playbackQuality,
-                            );
-                          }
-                        },
-                      ),
+                      Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      const SizedBox(height: 12),
+                      ElevatedButton(onPressed: _load, child: const Text('重试')),
                     ],
                   ),
-                );
-              }, childCount: _songs.length),
-            ),
-        ],
+                ),
+              )
+            else ...[
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final song = _songs[index];
+                  final isFav = favorites.isFavorite(song);
+                  return ListTile(
+                    leading: Text(
+                      '${index + 1}',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                    title: Text(
+                      song.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      song.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            isFav ? Icons.favorite : Icons.favorite_border,
+                          ),
+                          onPressed: () => favorites.toggleFavorite(song),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            playerState.isPlaying &&
+                                    playerState.currentSong?.id == song.id
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                            color:
+                                playerState.currentSong?.id == song.id
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                          ),
+                          onPressed: () {
+                            if (playerState.isPlaying &&
+                                playerState.currentSong?.id == song.id) {
+                              player.pause();
+                            } else {
+                              queue.addSong(song);
+                              player.playSong(
+                                song,
+                                quality: settings.playbackQuality,
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }, childCount: _songs.length),
+              ),
+              if (_loadingMore)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -21,6 +21,20 @@ class SearchPanel extends ConsumerStatefulWidget {
 class _SearchPanelState extends ConsumerState<SearchPanel> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(searchStateProvider.notifier).loadMore();
+    }
+  }
 
   String _sourceLabel(String source) {
     switch (source) {
@@ -41,6 +55,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -192,8 +207,21 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                     ),
                   Expanded(
                     child: ListView.builder(
-                      itemCount: searchState.results.length,
+                      controller: _scrollController,
+                      itemCount: searchState.results.length + (searchState.hasMore ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index >= searchState.results.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          );
+                        }
                         final song = searchState.results[index];
                         final isFavorite = favorites.isFavorite(song);
                         final isPlaying =
