@@ -725,30 +725,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
           ),
           // 播放/暂停
-          GestureDetector(
-            onTap: () => controller.toggle(),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withValues(alpha: 0.4),
-                    blurRadius: 16,
-                    spreadRadius: 2,
+          Material(
+            color: Colors.white,
+            shape: const CircleBorder(),
+            elevation: 4,
+            shadowColor: primaryColor.withValues(alpha: 0.4),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => controller.toggle(),
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    isPlaying ? Icons.pause : Icons.play_arrow,
+                    key: ValueKey(isPlaying),
+                    color: bgColorDark,
+                    size: 36,
                   ),
-                ],
-              ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  isPlaying ? Icons.pause : Icons.play_arrow,
-                  key: ValueKey(isPlaying),
-                  color: bgColorDark,
-                  size: 36,
                 ),
               ),
             ),

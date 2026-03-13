@@ -105,38 +105,33 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> playSong(Song song, {required String quality}) async {
-    print('[PlayerController] playSong called: ${song.name} quality=$quality');
-    state = state.copyWith(error: null);
+    // 立即更新歌曲信息，让 UI 马上响应
+    state = state.copyWith(
+      error: null,
+      currentSong: song,
+      position: Duration.zero,
+      lyrics: const [],
+      currentLyricIndex: -1,
+    );
+
+    // 更新锁屏/通知栏信息
+    audioHandler.setNowPlaying(
+      title: song.name,
+      artist: song.artist,
+    );
+
     try {
       final url = await repository.fetchSongUrl(
         songId: song.id,
         source: song.source,
         quality: quality,
       );
-      print('[PlayerController] got url: $url');
       await engine.setSource(url);
-      print('[PlayerController] setSource done');
-      // Web 平台 play() 可能因 Autoplay Policy 抛出 JS 异常，不 await 避免阻塞状态更新
       engine.play().catchError((e) {
         print('[PlayerController] play() error (ignored): $e');
       });
-      print('[PlayerController] play() done, updating state');
 
-      // 先更新播放状态，让 UI 立即响应
-      state = state.copyWith(
-        currentSong: song,
-        isPlaying: true,
-        position: Duration.zero,
-        lyrics: const [],
-        currentLyricIndex: -1,
-      );
-      print('[PlayerController] state updated: isPlaying=true');
-
-      // 更新锁屏/通知栏信息
-      audioHandler.setNowPlaying(
-        title: song.name,
-        artist: song.artist,
-      );
+      state = state.copyWith(isPlaying: true);
 
       // 后台加载歌词和封面
       try {
@@ -153,7 +148,6 @@ class PlayerController extends StateNotifier<PlayerState> {
       try {
         String artworkUrl;
         if (song.picUrl != null && song.picUrl!.isNotEmpty) {
-          // 网易云图片有防盗链，走后端 imgproxy 代理
           final encoded = Uri.encodeComponent(song.picUrl!);
           artworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
         } else {
@@ -164,7 +158,6 @@ class PlayerController extends StateNotifier<PlayerState> {
         }
         await themeController.updateFromArtwork(artworkUrl);
         state = state.copyWith(artworkUrl: artworkUrl);
-        // 更新锁屏封面
         audioHandler.setNowPlaying(
           title: song.name,
           artist: song.artist,
@@ -175,7 +168,6 @@ class PlayerController extends StateNotifier<PlayerState> {
         print('[PlayerController] fetchArtwork error: $e');
       }
 
-      // 记录播放历史
       onSongPlayed?.call(song);
     } catch (e, st) {
       print('[PlayerController] playSong error: $e\n$st');
@@ -189,12 +181,18 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   Future<void> toggle() async {
-    if (state.isPlaying) {
-      await engine.pause();
-      state = state.copyWith(isPlaying: false);
-    } else {
-      await engine.play();
-      state = state.copyWith(isPlaying: true);
+    final wasPlaying = state.isPlaying;
+    // 先更新状态让 UI 立即响应
+    state = state.copyWith(isPlaying: !wasPlaying);
+    try {
+      if (wasPlaying) {
+        await engine.pause();
+      } else {
+        await engine.play();
+      }
+    } catch (e) {
+      // 引擎操作失败，回滚状态
+      state = state.copyWith(isPlaying: wasPlaying);
     }
   }
 
