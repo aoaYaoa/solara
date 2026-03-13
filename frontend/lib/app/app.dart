@@ -60,6 +60,7 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
 
     return MaterialApp(
       title: 'Solara',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: themeState.seedColor,
