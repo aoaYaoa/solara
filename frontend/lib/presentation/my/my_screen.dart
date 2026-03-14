@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/favorites_state.dart';
 import '../../domain/state/history_state.dart';
+import '../../domain/state/local_songs_state.dart';
 import '../../domain/state/queue_state.dart';
 import '../../domain/state/settings_state.dart';
 import '../../services/local_music_service.dart';
 import '../../services/player_controller.dart';
 import '../favorites/favorites_panel.dart';
 import '../history/history_panel.dart';
+import '../local/local_songs_panel.dart';
 import '../queue/queue_panel.dart';
 import '../playlist/playlist_screen.dart';
 
@@ -70,13 +72,17 @@ class _MyScreenState extends ConsumerState<MyScreen> {
     final songs = await LocalMusicService.pickFiles();
     if (songs.isEmpty) return;
     if (!context.mounted) return;
+    // 保存到本地持久化
+    await ref.read(localSongsProvider.notifier).addSongs(songs);
+    if (!context.mounted) return;
+    final allLocal = ref.read(localSongsProvider);
     final queue = ref.read(queueStateProvider.notifier);
     final player = ref.read(playerControllerProvider.notifier);
     final settings = ref.read(settingsStateProvider);
-    queue.replaceQueue(songs, songs.first);
+    queue.replaceQueue(allLocal, songs.first);
     player.playSong(songs.first, quality: settings.playbackQuality);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已导入 ${songs.length} 首本地歌曲')),
+      SnackBar(content: Text('已导入 ${songs.length} 首本地歌曲，共 ${allLocal.length} 首')),
     );
   }
 
@@ -85,6 +91,7 @@ class _MyScreenState extends ConsumerState<MyScreen> {
     final favCount = ref.watch(favoritesStateProvider).favorites.length;
     final histCount = ref.watch(historyStateProvider).entries.length;
     final queueCount = ref.watch(queueStateProvider).songs.length;
+    final localCount = ref.watch(localSongsProvider).length;
 
     return Scaffold(
       body: CustomScrollView(
@@ -130,9 +137,10 @@ class _MyScreenState extends ConsumerState<MyScreen> {
                   _QuickEntry(
                     icon: Icons.folder_open,
                     label: '本地',
-                    count: -1,
+                    count: localCount,
                     color: Colors.orange.shade400,
-                    onTap: () => _importLocalMusic(context),
+                    onTap: () => _showPanel(context, '本地音乐', const LocalSongsPanel()),
+                    onLongPress: () => _importLocalMusic(context),
                   ),
                 ],
               ),
@@ -160,6 +168,7 @@ class _QuickEntry extends StatelessWidget {
   final int count;
   final Color color;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _QuickEntry({
     required this.icon,
@@ -167,6 +176,7 @@ class _QuickEntry extends StatelessWidget {
     required this.count,
     required this.color,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -175,6 +185,7 @@ class _QuickEntry extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Card(
           elevation: 1,
           shadowColor: colorScheme.shadow.withValues(alpha: 0.15),
@@ -205,7 +216,7 @@ class _QuickEntry extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  count < 0 ? '导入' : '$count',
+                  '$count',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

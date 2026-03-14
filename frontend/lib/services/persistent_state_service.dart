@@ -185,4 +185,16 @@ class PersistentStateService {
   Future<void> saveSearchHistory(List<String> history) async {
     await storage.setJson('searchHistory', history);
   }
+
+  Future<List<Song>> loadLocalSongs() async {
+    final data = await storage.getJson<List<dynamic>>('localSongs');
+    if (data == null) return [];
+    return data
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<void> saveLocalSongs(List<Song> songs) async {
+    await storage.setJson('localSongs', songs.map((s) => s.toJson()).toList());
+  }
 }

@@ -139,5 +139,8 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
 final discoverStateProvider =
     StateNotifierProvider<DiscoverNotifier, DiscoverState>(
-      (ref) => DiscoverNotifier(ref),
+      (ref) {
+        ref.keepAlive(); // 防止切换 tab 时 provider 被销毁导致数据丢失
+        return DiscoverNotifier(ref);
+      },
     );
