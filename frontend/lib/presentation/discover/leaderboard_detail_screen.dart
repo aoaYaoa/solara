@@ -111,9 +111,7 @@ class _LeaderboardDetailScreenState
               icon: const Icon(Icons.play_circle_outline),
               tooltip: '全部播放',
               onPressed: () {
-                for (final s in _songs) {
-                  queue.addSong(s);
-                }
+                queue.replaceQueue(_songs, _songs.first);
                 player.playSong(
                   _songs.first,
                   quality: settings.playbackQuality,
@@ -223,8 +221,7 @@ class _LeaderboardDetailScreenState
                           if (playerState.isPlaying && isCurrent) {
                             player.pause();
                           } else {
-                            queue.addSongs(_songs);
-                            queue.selectSong(song);
+                            queue.replaceQueue(_songs, song);
                             player.playSong(
                               song,
                               quality: settings.playbackQuality,

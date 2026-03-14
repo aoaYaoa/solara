@@ -221,7 +221,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.play_arrow),
               tooltip: '全部播放',
               onPressed: () {
-                queueNotifier.addSongs(current.songs);
+                queueNotifier.replaceQueue(current.songs, current.songs.first);
                 player.playSong(
                   current.songs.first,
                   quality: settings.playbackQuality,
@@ -269,11 +269,13 @@ class PlaylistDetailScreen extends ConsumerWidget {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.play_arrow),
-                          onPressed:
-                              () => player.playSong(
-                                song,
-                                quality: settings.playbackQuality,
-                              ),
+                          onPressed: () {
+                                queueNotifier.replaceQueue(current.songs, song);
+                                player.playSong(
+                                  song,
+                                  quality: settings.playbackQuality,
+                                );
+                              },
                         ),
                         IconButton(
                           icon: const Icon(Icons.remove_circle_outline),
@@ -284,11 +286,13 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    onTap:
-                        () => player.playSong(
-                          song,
-                          quality: settings.playbackQuality,
-                        ),
+                    onTap: () {
+                      queueNotifier.replaceQueue(current.songs, song);
+                      player.playSong(
+                        song,
+                        quality: settings.playbackQuality,
+                      );
+                    },
                   );
                 },
               ),

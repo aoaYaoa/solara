@@ -70,6 +70,17 @@ class QueueStateNotifier extends StateNotifier<QueueState> {
     state = state.copyWith(currentIndex: clampedIndex, playMode: playMode);
   }
 
+  /// 用新列表替换队列，并定位到 selected 歌曲
+  void replaceQueue(List<Song> songs, Song selected) {
+    if (songs.isEmpty) return;
+    final index = songs.indexWhere((s) => s.id == selected.id);
+    state = state.copyWith(
+      songs: List.unmodifiable(songs),
+      currentIndex: index < 0 ? 0 : index,
+    );
+    persistence.saveQueue(state);
+  }
+
   void addSongs(List<Song> songs) {
     if (songs.isEmpty) return;
     final existingIds = state.songs.map((s) => s.id).toSet();

@@ -11,12 +11,14 @@ import '../playlist/playlist_screen.dart';
 
 class SongTile extends ConsumerWidget {
   final Song song;
+  final List<Song>? songList;
   final VoidCallback? onTap;
   final bool showFavorite;
 
   const SongTile({
     super.key,
     required this.song,
+    this.songList,
     this.onTap,
     this.showFavorite = true,
   });
@@ -56,7 +58,11 @@ class SongTile extends ConsumerWidget {
         onSelected: (value) async {
           switch (value) {
             case 'play':
-              queue.addSong(song);
+              if (songList != null) {
+                queue.replaceQueue(songList!, song);
+              } else {
+                queue.addSong(song);
+              }
               player.playSong(song, quality: settings.playbackQuality);
             case 'queue':
               queue.addSong(song);
@@ -126,7 +132,11 @@ class SongTile extends ConsumerWidget {
       onTap:
           onTap ??
           () {
-            queue.addSong(song);
+            if (songList != null) {
+              queue.replaceQueue(songList!, song);
+            } else {
+              queue.addSong(song);
+            }
             player.playSong(song, quality: settings.playbackQuality);
           },
     );
