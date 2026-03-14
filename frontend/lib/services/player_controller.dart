@@ -279,6 +279,12 @@ class PlayerController extends StateNotifier<PlayerState> {
 
   Future<void> toggle() async {
     final wasPlaying = state.isPlaying;
+    // 引擎未加载（恢复状态后第一次播放）：直接调用 playSong 加载并播放
+    if (!wasPlaying && state.currentSong != null && engine.duration == null) {
+      final quality = getQuality?.call() ?? '320';
+      await playSong(state.currentSong!, quality: quality);
+      return;
+    }
     // 先更新状态让 UI 立即响应
     state = state.copyWith(isPlaying: !wasPlaying);
     try {
