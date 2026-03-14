@@ -188,6 +188,11 @@ class PlayerController extends StateNotifier<PlayerState> {
       _isLoading = false;
       print('[PlayerController] playSong error: $e\n$st');
       if (e is AuthRequiredException) {
+        final relogined = await auth.autoRelogin();
+        if (relogined) {
+          // 重新登录成功，重试播放
+          return playSong(song, quality: quality);
+        }
         auth.logout();
         state = state.copyWith(error: '登录已失效，请重新登录', isPlaying: false);
         return;

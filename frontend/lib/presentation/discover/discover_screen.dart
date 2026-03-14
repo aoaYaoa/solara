@@ -25,7 +25,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       if (!_initialLoaded) {
         _initialLoaded = true;
         final discoverState = ref.read(discoverStateProvider);
-        if (discoverState.songLists.isEmpty && !discoverState.loadingSongLists) {
+        if (discoverState.songLists.isEmpty && !discoverState.loading) {
           final source = ref.read(settingsStateProvider).searchSource;
           ref.read(discoverStateProvider.notifier).loadAll(source: source);
         }
@@ -88,7 +88,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           SliverToBoxAdapter(
             child: _SectionTitle(title: '精选歌单', icon: Icons.queue_music_rounded),
           ),
-          if (state.loadingSongLists)
+          if (state.loading)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(32),

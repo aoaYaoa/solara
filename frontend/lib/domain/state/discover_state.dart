@@ -6,8 +6,7 @@ import '../../data/providers.dart';
 class DiscoverState {
   final List<LeaderboardItem> leaderboards;
   final List<SongListItem> songLists;
-  final bool loadingLeaderboards;
-  final bool loadingSongLists;
+  final bool loading; // unified initial/refresh loading
   final bool loadingMoreSongLists;
   final int songListPage;
   final bool hasMoreSongLists;
@@ -16,19 +15,21 @@ class DiscoverState {
   const DiscoverState({
     this.leaderboards = const [],
     this.songLists = const [],
-    this.loadingLeaderboards = false,
-    this.loadingSongLists = false,
+    this.loading = false,
     this.loadingMoreSongLists = false,
     this.songListPage = 1,
     this.hasMoreSongLists = true,
     this.error,
   });
 
+  // Keep legacy getters so existing UI code keeps compiling
+  bool get loadingLeaderboards => loading;
+  bool get loadingSongLists => loading;
+
   DiscoverState copyWith({
     List<LeaderboardItem>? leaderboards,
     List<SongListItem>? songLists,
-    bool? loadingLeaderboards,
-    bool? loadingSongLists,
+    bool? loading,
     bool? loadingMoreSongLists,
     int? songListPage,
     bool? hasMoreSongLists,
@@ -38,8 +39,7 @@ class DiscoverState {
     return DiscoverState(
       leaderboards: leaderboards ?? this.leaderboards,
       songLists: songLists ?? this.songLists,
-      loadingLeaderboards: loadingLeaderboards ?? this.loadingLeaderboards,
-      loadingSongLists: loadingSongLists ?? this.loadingSongLists,
+      loading: loading ?? this.loading,
       loadingMoreSongLists: loadingMoreSongLists ?? this.loadingMoreSongLists,
       songListPage: songListPage ?? this.songListPage,
       hasMoreSongLists: hasMoreSongLists ?? this.hasMoreSongLists,
@@ -55,40 +55,28 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
   Future<void> loadAll({String source = 'kw'}) async {
     state = state.copyWith(
-      loadingLeaderboards: true,
-      loadingSongLists: true,
+      loading: true,
       songListPage: 1,
       hasMoreSongLists: true,
       clearError: true,
     );
-    await Future.wait([
-      _loadLeaderboards(source: source),
-      _loadSongLists(source: source),
-    ]);
-  }
-
-  Future<void> _loadLeaderboards({required String source}) async {
     try {
       final repo = _ref.read(solaraRepositoryProvider);
-      final items = await repo.fetchLeaderboardList(source: source);
-      state = state.copyWith(leaderboards: items, loadingLeaderboards: false);
-    } catch (e) {
-      state = state.copyWith(loadingLeaderboards: false, error: '排行榜加载失败: $e');
-    }
-  }
-
-  Future<void> _loadSongLists({required String source}) async {
-    try {
-      final repo = _ref.read(solaraRepositoryProvider);
-      final items = await repo.fetchSongList(source: source, page: 1);
+      final results = await Future.wait([
+        repo.fetchLeaderboardList(source: source),
+        repo.fetchSongList(source: source, page: 1),
+      ]);
+      final leaderboards = results[0] as List<LeaderboardItem>;
+      final songLists = results[1] as List<SongListItem>;
       state = state.copyWith(
-        songLists: items,
-        loadingSongLists: false,
+        leaderboards: leaderboards,
+        songLists: songLists,
+        loading: false,
         songListPage: 1,
-        hasMoreSongLists: items.length >= 30,
+        hasMoreSongLists: songLists.length >= 30,
       );
     } catch (e) {
-      state = state.copyWith(loadingSongLists: false, error: '歌单加载失败: $e');
+      state = state.copyWith(loading: false, error: '加载失败: $e');
     }
   }
 
