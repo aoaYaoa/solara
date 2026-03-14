@@ -3,14 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/favorites_state.dart';
 import '../../domain/state/history_state.dart';
 import '../../domain/state/queue_state.dart';
+import '../../domain/state/settings_state.dart';
+import '../../services/local_music_service.dart';
+import '../../services/player_controller.dart';
 import '../favorites/favorites_panel.dart';
 import '../history/history_panel.dart';
 import '../queue/queue_panel.dart';
 import '../playlist/playlist_screen.dart';
 
-class MyScreen extends ConsumerWidget {
+class MyScreen extends ConsumerStatefulWidget {
   const MyScreen({super.key});
 
+  @override
+  ConsumerState<MyScreen> createState() => _MyScreenState();
+}
+
+class _MyScreenState extends ConsumerState<MyScreen> {
   void _showPanel(BuildContext context, String title, Widget panel) {
     final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
@@ -58,8 +66,22 @@ class MyScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _importLocalMusic(BuildContext context) async {
+    final songs = await LocalMusicService.pickFiles();
+    if (songs.isEmpty) return;
+    if (!context.mounted) return;
+    final queue = ref.read(queueStateProvider.notifier);
+    final player = ref.read(playerControllerProvider.notifier);
+    final settings = ref.read(settingsStateProvider);
+    queue.replaceQueue(songs, songs.first);
+    player.playSong(songs.first, quality: settings.playbackQuality);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已导入 ${songs.length} 首本地歌曲')),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final favCount = ref.watch(favoritesStateProvider).favorites.length;
     final histCount = ref.watch(historyStateProvider).entries.length;
     final queueCount = ref.watch(queueStateProvider).songs.length;
@@ -103,6 +125,14 @@ class MyScreen extends ConsumerWidget {
                     color: Colors.green.shade400,
                     onTap:
                         () => _showPanel(context, '播放队列', const QueuePanel()),
+                  ),
+                  const SizedBox(width: 12),
+                  _QuickEntry(
+                    icon: Icons.folder_open,
+                    label: '本地',
+                    count: -1,
+                    color: Colors.orange.shade400,
+                    onTap: () => _importLocalMusic(context),
                   ),
                 ],
               ),
@@ -175,7 +205,7 @@ class _QuickEntry extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$count',
+                  count < 0 ? '导入' : '$count',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

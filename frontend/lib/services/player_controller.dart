@@ -178,11 +178,17 @@ class PlayerController extends StateNotifier<PlayerState> {
     );
 
     try {
-      final url = await repository.fetchSongUrl(
-        songId: song.id,
-        source: song.source,
-        quality: quality,
-      );
+      final String url;
+      if (song.source == 'local') {
+        // 本地文件直接用 file:// URI
+        url = song.urlId.startsWith('file://') ? song.urlId : 'file://${song.urlId}';
+      } else {
+        url = await repository.fetchSongUrl(
+          songId: song.id,
+          source: song.source,
+          quality: quality,
+        );
+      }
       await engine.setSource(url);
       engine.play().catchError((e) {
         print('[PlayerController] play() error (ignored): $e');

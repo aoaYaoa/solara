@@ -54,6 +54,7 @@ class DiscoverState {
 
 class DiscoverNotifier extends StateNotifier<DiscoverState> {
   final Ref _ref;
+  final Map<String, List<Song>> _detailCache = {};
 
   DiscoverNotifier(this._ref) : super(const DiscoverState());
 
@@ -114,8 +115,12 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     required String source,
     int page = 1,
   }) async {
+    final cacheKey = '$source:leaderboard:$id:$page';
+    if (_detailCache.containsKey(cacheKey)) return _detailCache[cacheKey]!;
     final repo = _ref.read(solaraRepositoryProvider);
-    return repo.fetchLeaderboardDetail(id: id, source: source, page: page);
+    final songs = await repo.fetchLeaderboardDetail(id: id, source: source, page: page);
+    _detailCache[cacheKey] = songs;
+    return songs;
   }
 
   Future<List<Song>> fetchSongListDetail({
@@ -123,8 +128,12 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     required String source,
     int page = 1,
   }) async {
+    final cacheKey = '$source:songlist:$id:$page';
+    if (_detailCache.containsKey(cacheKey)) return _detailCache[cacheKey]!;
     final repo = _ref.read(solaraRepositoryProvider);
-    return repo.fetchSongListDetail(id: id, source: source, page: page);
+    final songs = await repo.fetchSongListDetail(id: id, source: source, page: page);
+    _detailCache[cacheKey] = songs;
+    return songs;
   }
 }
 

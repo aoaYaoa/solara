@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/song.dart';
 import '../../domain/state/favorites_state.dart';
@@ -96,14 +95,6 @@ class SongTile extends ConsumerWidget {
                   ).showSnackBar(SnackBar(content: Text('下载失败：$e')));
                 }
               }
-            case 'share':
-              final text = '${song.name} - ${song.artist}${song.album.isNotEmpty ? ' 《${song.album}》' : ''}';
-              await Clipboard.setData(ClipboardData(text: text));
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('歌曲信息已复制到剪贴板')),
-                );
-              }
           }
         },
         itemBuilder:
@@ -134,13 +125,6 @@ class SongTile extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.download),
                   title: Text('下载'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'share',
-                child: ListTile(
-                  leading: Icon(Icons.copy),
-                  title: Text('复制歌曲信息'),
                 ),
               ),
             ],
