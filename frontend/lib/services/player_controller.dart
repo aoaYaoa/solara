@@ -36,6 +36,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   bool _isLoading = false;
   bool _isSwitching = false;
   Duration? _restoredPosition;
+  int _tickCount = 0;
 
   PlayerController({
     required this.repository,
@@ -108,6 +109,15 @@ class PlayerController extends StateNotifier<PlayerState> {
         duration: duration,
         currentLyricIndex: currentIndex,
       );
+    }
+    // 每10次tick（约5秒）自动保存播放进度，应对划掉app没暂停的情况
+    _tickCount++;
+    if (_tickCount >= 10 && state.isPlaying && state.currentSong != null) {
+      _tickCount = 0;
+      persistence.savePlaybackPosition(
+        position: state.position,
+        duration: state.duration,
+      ).ignore();
     }
   }
 
