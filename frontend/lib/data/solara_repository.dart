@@ -133,9 +133,14 @@ class SolaraRepository {
     final response = await dio.getUri(uri);
     _ensureAuthed(response);
     final data = response.data;
-    if (data is Map && data['url'] != null) return data['url'].toString();
-    if (data is List && data.isNotEmpty && data[0] is Map && data[0]['url'] != null) {
-      return data[0]['url'].toString();
+    // 支持 {url:...}, {video:...}, [{url:...}], [{video:...}] 等格式
+    if (data is Map) {
+      final v = data['url'] ?? data['video'];
+      if (v != null) return v.toString();
+    }
+    if (data is List && data.isNotEmpty && data[0] is Map) {
+      final v = data[0]['url'] ?? data[0]['video'];
+      if (v != null) return v.toString();
     }
     if (data is String && data.startsWith('http')) return data;
     throw Exception('Invalid mv url response: \$data');
