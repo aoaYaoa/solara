@@ -63,6 +63,12 @@ class QueueStateNotifier extends StateNotifier<QueueState> {
     setCurrentIndex(index);
   }
 
+  /// 仅用于启动时从持久化恢复，不触发 saveQueue
+  void loadState({required int currentIndex, required PlayMode playMode}) {
+    final clampedIndex = currentIndex.clamp(0, state.songs.isEmpty ? 0 : state.songs.length - 1);
+    state = state.copyWith(currentIndex: clampedIndex, playMode: playMode);
+  }
+
   void addSongs(List<Song> songs) {
     if (songs.isEmpty) return;
     final existingIds = state.songs.map((s) => s.id).toSet();
@@ -92,16 +98,19 @@ class QueueStateNotifier extends StateNotifier<QueueState> {
   void setCurrentIndex(int index) {
     if (index < 0 || index >= state.songs.length) return;
     state = state.copyWith(currentIndex: index);
+    persistence.saveQueue(state);
   }
 
   void setPlayMode(PlayMode mode) {
     state = state.copyWith(playMode: mode);
+    persistence.saveQueue(state);
   }
 
   void cyclePlayMode() {
     final modes = PlayMode.values;
     final next = modes[(modes.indexOf(state.playMode) + 1) % modes.length];
     state = state.copyWith(playMode: next);
+    persistence.saveQueue(state);
   }
 }
 

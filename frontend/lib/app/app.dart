@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../domain/state/queue_state.dart';
 import '../domain/state/settings_state.dart';
 import '../presentation/home/home_screen.dart';
 import '../presentation/login/login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/player_controller.dart';
 import '../services/theme_controller.dart';
 import '../services/providers.dart';
 
@@ -23,6 +25,12 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
     super.initState();
     Future.microtask(() async {
       await ref.read(authStateProvider.notifier).restoreSession();
+      // 恢复上次播放的歌曲（仅显示，不自动播放）
+      final queue = ref.read(queueStateProvider);
+      if (queue.songs.isNotEmpty) {
+        final song = queue.songs[queue.currentIndex.clamp(0, queue.songs.length - 1)];
+        ref.read(playerControllerProvider.notifier).restoreLastSong(song);
+      }
       if (mounted) setState(() => _sessionRestored = true);
     });
   }

@@ -26,11 +26,22 @@ class PersistentStateService {
             )
             .toList();
     notifier.addSongs(songs);
+    final index = await storage.getJson<int>('queueCurrentIndex') ?? 0;
+    final playModeStr = await storage.getJson<String>('queuePlayMode');
+    final playMode = playModeStr != null
+        ? PlayMode.values.firstWhere(
+            (m) => m.name == playModeStr,
+            orElse: () => PlayMode.list,
+          )
+        : PlayMode.list;
+    notifier.loadState(currentIndex: index, playMode: playMode);
   }
 
   Future<void> saveQueue(QueueState state) async {
     final payload = state.songs.map((s) => s.toJson()).toList();
     await storage.setJson('playlistSongs', payload);
+    await storage.setJson('queueCurrentIndex', state.currentIndex);
+    await storage.setJson('queuePlayMode', state.playMode.name);
     await storage.setJson(
       'queueUpdatedAt',
       DateTime.now().toUtc().toIso8601String(),

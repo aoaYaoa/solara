@@ -251,6 +251,32 @@ class PlayerController extends StateNotifier<PlayerState> {
     });
   }
 
+  /// 启动时恢复上次播放的歌曲状态（仅显示，不自动播放）
+  void restoreLastSong(Song song) {
+    String? artworkUrl;
+    if (song.picUrl != null && song.picUrl!.isNotEmpty) {
+      final encoded = Uri.encodeComponent(song.picUrl!);
+      artworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
+    } else if (song.picId.isNotEmpty) {
+      artworkUrl = repository.buildPicProxyUrl(picId: song.picId, source: song.source);
+    }
+    state = PlayerState(
+      currentSong: song,
+      isPlaying: false,
+      position: Duration.zero,
+      duration: null,
+      lyrics: const [],
+      currentLyricIndex: -1,
+      artworkUrl: artworkUrl,
+      error: null,
+    );
+    audioHandler.setNowPlaying(
+      title: song.name,
+      artist: song.artist,
+      artworkUrl: artworkUrl,
+    );
+  }
+
   Future<void> toggle() async {
     final wasPlaying = state.isPlaying;
     // 先更新状态让 UI 立即响应
