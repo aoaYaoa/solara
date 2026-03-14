@@ -36,6 +36,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     });
   }
 
+  String _sourceLabel(String source) {
+    switch (source) {
+      case 'netease':  return '网易';
+      case 'tencent':  return 'QQ';
+      case 'kugou':    return '酷狗';
+      case 'kuwo':     return '酷我';
+      case 'youtube':  return 'YouTube';
+      case 'bilibili': return 'B站';
+      case 'jamendo':  return 'Jamendo';
+      default: return source;
+    }
+  }
+
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
@@ -67,6 +80,62 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
             floating: true,
             title: const Text('发现'),
             centerTitle: false,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    ref.read(settingsStateProvider.notifier).setSearchSource(value);
+                    ref.read(discoverStateProvider.notifier).loadAll(source: value);
+                  },
+                  offset: const Offset(0, 42),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  itemBuilder: (_) => AppConfig.sources.map((s) {
+                    final isSelected = s == settings.searchSource;
+                    final colorScheme = Theme.of(context).colorScheme;
+                    return PopupMenuItem(
+                      value: s,
+                      child: Row(
+                        children: [
+                          Text(
+                            _sourceLabel(s),
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              color: isSelected ? colorScheme.primary : null,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (isSelected)
+                            Icon(Icons.check_rounded, size: 18, color: colorScheme.primary),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _sourceLabel(settings.searchSource),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(Icons.unfold_more, size: 14, color: colorScheme.onSurfaceVariant),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           if (state.error != null)
             SliverToBoxAdapter(
