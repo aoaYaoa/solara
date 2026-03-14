@@ -232,11 +232,6 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                         final isPlaying =
                             playerState.isPlaying &&
                             playerState.currentSong?.id == song.id;
-                        final repo = ref.read(solaraRepositoryProvider);
-                        final picUrl = song.picUrl ??
-                            (song.picId.isNotEmpty
-                                ? repo.buildPicProxyUrl(picId: song.picId, source: song.source, size: 100)
-                                : null);
                         return ListTile(
                           onTap: () {
                             queue.replaceQueue(searchState.results, song);
@@ -259,18 +254,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          leading: picUrl != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    proxyImageUrl(picUrl),
-                                    width: 44,
-                                    height: 44,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _songPlaceholder(colorScheme),
-                                  ),
-                                )
-                              : _songPlaceholder(colorScheme),
+                          leading: _SongCover(picId: song.picId, source: song.source, picUrl: song.picUrl),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -494,16 +478,93 @@ class _LeaderboardCard extends StatelessWidget {
   }
 }
 
-Widget _songPlaceholder(ColorScheme colorScheme) {
-  return Container(
-    width: 44,
-    height: 44,
-    decoration: BoxDecoration(
-      color: colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Icon(Icons.music_note, size: 22, color: colorScheme.onSurfaceVariant),
-  );
+// ── 搜索结果封面懒加载（带内存缓存）────────────────────
+class _SongCover extends StatefulWidget {
+  final String picId;
+  final String source;
+  final String? picUrl;
+
+  const _SongCover({required this.picId, required this.source, this.picUrl});
+
+  @override
+  State<_SongCover> createState() => _SongCoverState();
+}
+
+class _SongCoverState extends State<_SongCover> {
+  static final Map<String, String> _cache = {};
+  Future<String?>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.picUrl != null) return;
+    final key = '${widget.source}:${widget.picId}';
+    if (_cache.containsKey(key)) return;
+    if (widget.picId.isNotEmpty) {
+      _future = ProviderScope.containerOf(context)
+          .read(solaraRepositoryProvider)
+          .fetchPicUrl(picId: widget.picId, source: widget.source, size: 100)
+          .then((url) {
+            _cache[key] = url;
+            return url;
+          })
+          .catchError((_) => '');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final placeholder = Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Icon(Icons.music_note, size: 22, color: colorScheme.onSurfaceVariant),
+    );
+
+    String? resolvedUrl = widget.picUrl;
+    if (resolvedUrl == null) {
+      final key = '${widget.source}:${widget.picId}';
+      resolvedUrl = _cache[key];
+    }
+
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.network(
+          proxyImageUrl(resolvedUrl),
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
+      );
+    }
+
+    if (_future == null) return placeholder;
+
+    return FutureBuilder<String?>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.hasData && snap.data != null && snap.data!.isNotEmpty) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              proxyImageUrl(snap.data!),
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => placeholder,
+            ),
+          );
+        }
+        return placeholder;
+      },
+    );
+  }
 }
 
 // ── 分区标题 ──────────────────────────────────────────

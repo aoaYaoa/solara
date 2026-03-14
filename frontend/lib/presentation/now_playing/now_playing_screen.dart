@@ -10,6 +10,7 @@ import '../../domain/state/favorites_state.dart';
 import '../../domain/models/lyric_line.dart';
 import '../../services/player_controller.dart';
 import '../../services/eq_service.dart';
+import '../../services/sleep_timer_service.dart';
 import '../queue/queue_panel.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -704,6 +705,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             ),
             onPressed: () => _showEqPicker(context, eqPreset, settingsNotifier),
           ),
+          _SleepTimerButton(primaryColor: primaryColor),
           IconButton(
             icon: Icon(
               volume <= 0
@@ -940,6 +942,126 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       case PlayMode.random:
         return Icons.shuffle;
     }
+  }
+}
+
+// ── 睡眠定时器按钮 ──────────────────────────────────
+class _SleepTimerButton extends ConsumerWidget {
+  final Color primaryColor;
+  const _SleepTimerButton({required this.primaryColor});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final timerState = ref.watch(sleepTimerProvider);
+    final timerNotifier = ref.read(sleepTimerProvider.notifier);
+    final player = ref.read(playerControllerProvider.notifier);
+
+    // Wire up the onExpired callback once
+    timerNotifier.onExpired = () => player.pause();
+
+    String label;
+    if (timerState.active && timerState.remaining != null) {
+      final m = timerState.remaining!.inMinutes;
+      final s = timerState.remaining!.inSeconds % 60;
+      label = m > 0 ? '${m}m' : '${s}s';
+    } else {
+      label = '';
+    }
+
+    return IconButton(
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(
+            Icons.bedtime_outlined,
+            color: timerState.active
+                ? primaryColor
+                : Colors.white.withValues(alpha: 0.7),
+          ),
+          if (label.isNotEmpty)
+            Positioned(
+              right: -6,
+              top: -6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(label,
+                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
+      onPressed: () => _showSleepTimerSheet(context, timerState, timerNotifier),
+    );
+  }
+
+  void _showSleepTimerSheet(
+    BuildContext context,
+    SleepTimerState timerState,
+    SleepTimerNotifier timerNotifier,
+  ) {
+    final options = [
+      const Duration(minutes: 15),
+      const Duration(minutes: 30),
+      const Duration(minutes: 45),
+      const Duration(minutes: 60),
+      const Duration(minutes: 90),
+    ];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('睡眠定时',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  if (timerState.active)
+                    TextButton(
+                      onPressed: () {
+                        timerNotifier.cancel();
+                        Navigator.pop(context);
+                      },
+                      child: const Text('取消定时'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: options.map((d) {
+                  final mins = d.inMinutes;
+                  final isActive = timerState.active &&
+                      timerState.remaining != null &&
+                      (timerState.remaining!.inMinutes - mins).abs() < 2;
+                  return ChoiceChip(
+                    label: Text('$mins 分钟'),
+                    selected: isActive,
+                    onSelected: (_) {
+                      timerNotifier.start(d);
+                      Navigator.pop(context);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

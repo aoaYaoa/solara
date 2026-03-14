@@ -21,7 +21,7 @@ class SleepTimerState {
 
 class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
   Timer? _timer;
-  final void Function() onExpired;
+  void Function() onExpired;
 
   SleepTimerNotifier({required this.onExpired})
     : super(const SleepTimerState());
