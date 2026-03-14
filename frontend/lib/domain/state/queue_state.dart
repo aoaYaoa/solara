@@ -39,10 +39,11 @@ class QueueState {
 
 class QueueStateNotifier extends StateNotifier<QueueState> {
   final PersistentStateService persistence;
+  late final Future<void> loaded;
 
   QueueStateNotifier({required this.persistence})
     : super(QueueState.initial()) {
-    persistence.loadQueue(this);
+    loaded = persistence.loadQueue(this);
   }
 
   void addSong(Song song) {

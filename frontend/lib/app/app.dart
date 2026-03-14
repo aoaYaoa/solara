@@ -25,7 +25,8 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
     super.initState();
     Future.microtask(() async {
       await ref.read(authStateProvider.notifier).restoreSession();
-      // 恢复上次播放的歌曲（仅显示，不自动播放）
+      // 等待队列从持久化加载完成，再恢复上次播放的歌曲
+      await ref.read(queueStateProvider.notifier).loaded;
       final queue = ref.read(queueStateProvider);
       if (queue.songs.isNotEmpty) {
         final song = queue.songs[queue.currentIndex.clamp(0, queue.songs.length - 1)];
