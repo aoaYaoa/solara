@@ -32,6 +32,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   void Function(int)? setCurrentQueueIndex;
   String Function()? getQuality;
   bool _isLoading = false;
+  bool _isSwitching = false;
 
   PlayerController({
     required this.repository,
@@ -58,6 +59,9 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   void _onSongComplete() {
+    // 防止 seek(Duration.zero) 触发二次 complete 事件导致重复切歌
+    if (_isSwitching) return;
+    _isSwitching = true;
     // 立即 seek 回起点，让 just_audio 脱离 completed 状态
     // 避免 iOS 系统因 completed 状态关闭 Now Playing 会话（灵动岛/锁屏）
     engine.seek(Duration.zero).ignore();
@@ -168,6 +172,7 @@ class PlayerController extends StateNotifier<PlayerState> {
 
       // 引擎就绪，解除 loading 锁，让 _tick() 开始同步
       _isLoading = false;
+      _isSwitching = false;
       audioHandler.endSwitching();
       state = state.copyWith(isPlaying: true);
 
@@ -209,6 +214,7 @@ class PlayerController extends StateNotifier<PlayerState> {
       onSongPlayed?.call(song);
     } catch (e, st) {
       _isLoading = false;
+      _isSwitching = false;
       print('[PlayerController] playSong error: $e\n$st');
       if (e is AuthRequiredException) {
         final relogined = await auth.autoRelogin();
