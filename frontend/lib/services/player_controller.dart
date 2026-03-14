@@ -115,6 +115,8 @@ class PlayerController extends StateNotifier<PlayerState> {
 
   Future<void> playSong(Song song, {required String quality}) async {
     _isLoading = true;
+    // 保留旧封面，切歌过渡期间用于锁屏/灵动岛显示
+    final previousArtworkUrl = state.artworkUrl;
 
     // 完整重置状态：直接构造新 PlayerState，避免 copyWith 的 nullable 遗留问题
     state = PlayerState(
@@ -124,7 +126,7 @@ class PlayerController extends StateNotifier<PlayerState> {
       duration: null,
       lyrics: const [],
       currentLyricIndex: -1,
-      artworkUrl: null,
+      artworkUrl: previousArtworkUrl, // 保留旧封面直到新封面加载完
       error: null,
     );
 
@@ -158,11 +160,17 @@ class PlayerController extends StateNotifier<PlayerState> {
       state = state.copyWith(isPlaying: true);
 
       // 立即用已知 duration 更新锁屏/灵动岛，封面暂用上一首（避免空白）
+      // 等待 duration 可用（just_audio setUrl 后 duration 可能稍有延迟）
+      Duration? dur = engine.duration;
+      if (dur == null) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        dur = engine.duration;
+      }
       audioHandler.setNowPlaying(
         title: song.name,
         artist: song.artist,
-        artworkUrl: state.artworkUrl,
-        duration: engine.duration,
+        artworkUrl: previousArtworkUrl,
+        duration: dur,
       );
 
       // 后台加载歌词
