@@ -102,38 +102,6 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // ── 音效（即将推出） ────────────────────────
-                  _SectionLabel(title: '音效'),
-                  const SizedBox(height: 8),
-                  _SettingsCard(
-                    children: [
-                      _SettingsTile(
-                        icon: Icons.equalizer_outlined,
-                        iconColor: Colors.teal,
-                        title: '均衡器',
-                        value: '即将推出',
-                        enabled: false,
-                      ),
-                      _Divider(),
-                      _SettingsTile(
-                        icon: Icons.surround_sound_outlined,
-                        iconColor: Colors.teal,
-                        title: '空间音效',
-                        value: '即将推出',
-                        enabled: false,
-                      ),
-                      _Divider(),
-                      _SettingsTile(
-                        icon: Icons.speed_outlined,
-                        iconColor: Colors.teal,
-                        title: '播放速度',
-                        value: '即将推出',
-                        enabled: false,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
                   // ── 开发者 ──────────────────────────────────
                   _SectionLabel(title: '开发者'),
                   const SizedBox(height: 8),

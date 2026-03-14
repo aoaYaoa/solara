@@ -180,6 +180,56 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     );
   }
 
+  void _showSongInfo(BuildContext context, dynamic song) {
+    if (song == null) return;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('歌曲信息',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _InfoRow(label: '歌曲', value: song.name),
+              _InfoRow(label: '艺术家', value: song.artist),
+              _InfoRow(label: '专辑', value: song.album),
+              _InfoRow(label: '来源', value: _sourceLabel(song.source)),
+              _InfoRow(label: 'ID', value: song.id),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _sourceLabel(String source) {
+    switch (source) {
+      case 'netease': return '网易云音乐';
+      case 'tencent': return 'QQ 音乐';
+      case 'kugou': return '酷狗音乐';
+      case 'kuwo': return '酷我音乐';
+      default: return source;
+    }
+  }
+
   void _showEqPicker(
     BuildContext context,
     String currentPreset,
@@ -575,6 +625,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             onPressed:
                 song != null ? () => favorites.toggleFavorite(song) : null,
           ),
+          IconButton(
+            icon: Icon(Icons.info_outline,
+                color: Colors.white.withValues(alpha: 0.7)),
+            onPressed: () => _showSongInfo(context, song),
+          ),
           GestureDetector(
             onTap: () => _showQualityPicker(context, quality, settingsNotifier),
             child: Container(
@@ -818,6 +873,39 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       case PlayMode.random:
         return Icons.shuffle;
     }
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 64,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(fontSize: 13),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+    );
   }
 }
 
