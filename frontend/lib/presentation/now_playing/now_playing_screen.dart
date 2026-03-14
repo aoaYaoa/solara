@@ -12,6 +12,7 @@ import '../../services/player_controller.dart';
 import '../../services/eq_service.dart';
 import '../../services/sleep_timer_service.dart';
 import '../queue/queue_panel.dart';
+import 'mv_player_screen.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({super.key});
@@ -462,6 +463,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   // ── 顶栏 ───────────────────────────────────────────
   Widget _buildTopBar(dynamic song, BuildContext context) {
+    final hasMv = song?.mvId != null && (song!.mvId as String).isNotEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
@@ -502,7 +504,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               ],
             ),
           ),
-          const SizedBox(width: 48),
+          if (hasMv)
+            IconButton(
+              icon: const Icon(Icons.video_library_outlined, color: Colors.white, size: 24),
+              tooltip: '播放 MV',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MvPlayerScreen(
+                      mvId: song!.mvId as String,
+                      source: song.source as String,
+                      songName: song.name as String,
+                      artist: song.artist as String,
+                    ),
+                  ),
+                );
+              },
+            )
+          else
+            const SizedBox(width: 48),
         ],
       ),
     );

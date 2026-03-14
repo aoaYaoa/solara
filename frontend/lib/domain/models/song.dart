@@ -8,6 +8,7 @@ class Song {
   final String lyricId;
   final String source;
   final String? picUrl; // 直接图片URL（来自发现页，避免pic_id精度损失）
+  final String? mvId;  // MV ID（存在时可播放MV）
 
   const Song({
     required this.id,
@@ -19,6 +20,7 @@ class Song {
     required this.lyricId,
     required this.source,
     this.picUrl,
+    this.mvId,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class Song {
       lyricId: json['lyric_id']?.toString() ?? '',
       source: json['source']?.toString() ?? 'netease',
       picUrl: json['pic_url']?.toString(),
+      mvId: json['mv_id']?.toString(),
     );
   }
 
@@ -46,6 +49,7 @@ class Song {
       'lyric_id': lyricId,
       'source': source,
       if (picUrl != null) 'pic_url': picUrl,
+      if (mvId != null) 'mv_id': mvId,
     };
   }
 }

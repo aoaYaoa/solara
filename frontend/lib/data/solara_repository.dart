@@ -124,6 +124,23 @@ class SolaraRepository {
     return uri.toString();
   }
 
+  Future<String> fetchMvUrl({
+    required String mvId,
+    required String source,
+  }) async {
+    final uri = _resolve(api.buildMvUrlUri(mvId: mvId, source: source));
+    DebugLogBus.add('Fetch mv url: $mvId');
+    final response = await dio.getUri(uri);
+    _ensureAuthed(response);
+    final data = response.data;
+    if (data is Map && data['url'] != null) return data['url'].toString();
+    if (data is List && data.isNotEmpty && data[0] is Map && data[0]['url'] != null) {
+      return data[0]['url'].toString();
+    }
+    if (data is String && data.startsWith('http')) return data;
+    throw Exception('Invalid mv url response: \$data');
+  }
+
   Future<List<LeaderboardItem>> fetchLeaderboardList({
     required String source,
   }) async {

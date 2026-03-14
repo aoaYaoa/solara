@@ -94,6 +94,10 @@ class SolaraApi {
     });
   }
 
+  Uri buildMvUrlUri({required String mvId, required String source}) {
+    return _buildProxyUri({'types': 'mv', 'id': mvId, 'source': source});
+  }
+
   Uri buildDiscoverLeaderboardListUri({required String source}) {
     return Uri(
       path: '/api/discover/leaderboard',
