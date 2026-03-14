@@ -356,6 +356,20 @@ class PlayerController extends StateNotifier<PlayerState> {
     await engine.seek(position);
   }
 
+  /// 淡出后暂停（用于睡眠定时器到期）
+  Future<void> fadeOutAndPause({Duration fadeDuration = const Duration(seconds: 5)}) async {
+    if (!state.isPlaying) return;
+    final steps = 20;
+    final stepDuration = Duration(milliseconds: fadeDuration.inMilliseconds ~/ steps);
+    for (int i = steps - 1; i >= 0; i--) {
+      if (!state.isPlaying) break;
+      await engine.setVolume(i / steps);
+      await Future.delayed(stepDuration);
+    }
+    await pause();
+    await engine.setVolume(1.0); // 恢复音量
+  }
+
   static final _random = Random();
 
   Future<void> skipNext({
@@ -473,13 +487,13 @@ final playerControllerProvider =
       },
     );
 
-/// 覆盖 sleepTimerProvider，让到期时暂停播放器
+/// 覆盖 sleepTimerProvider，让到期时淡出后暂停播放器
 final sleepTimerWithPlayerProvider =
     StateNotifierProvider<SleepTimerNotifier, SleepTimerState>(
       (ref) => SleepTimerNotifier(
         onExpired: () {
           final controller = ref.read(playerControllerProvider.notifier);
-          controller.pause();
+          controller.fadeOutAndPause();
         },
       ),
     );

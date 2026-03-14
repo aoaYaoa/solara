@@ -11,6 +11,7 @@ class DiscoverState {
   final int songListPage;
   final bool hasMoreSongLists;
   final String? error;
+  final String? loadedSource; // 记录当前已加载数据对应的音源
 
   const DiscoverState({
     this.leaderboards = const [],
@@ -20,6 +21,7 @@ class DiscoverState {
     this.songListPage = 1,
     this.hasMoreSongLists = true,
     this.error,
+    this.loadedSource,
   });
 
   // Keep legacy getters so existing UI code keeps compiling
@@ -35,6 +37,7 @@ class DiscoverState {
     bool? hasMoreSongLists,
     String? error,
     bool clearError = false,
+    String? loadedSource,
   }) {
     return DiscoverState(
       leaderboards: leaderboards ?? this.leaderboards,
@@ -44,6 +47,7 @@ class DiscoverState {
       songListPage: songListPage ?? this.songListPage,
       hasMoreSongLists: hasMoreSongLists ?? this.hasMoreSongLists,
       error: clearError ? null : (error ?? this.error),
+      loadedSource: loadedSource ?? this.loadedSource,
     );
   }
 }
@@ -53,9 +57,9 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
   DiscoverNotifier(this._ref) : super(const DiscoverState());
 
-  /// 如果数据已加载则跳过，避免每次切换 tab 重新请求
+  /// 如果当前 source 数据已加载则跳过，避免每次切换 tab 重新请求
   Future<void> ensureLoaded({required String source}) async {
-    if (state.leaderboards.isNotEmpty || state.loading) return;
+    if (state.loadedSource == source || state.loading) return;
     await loadAll(source: source);
   }
 
@@ -80,6 +84,7 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
         loading: false,
         songListPage: 1,
         hasMoreSongLists: songLists.length >= 30,
+        loadedSource: source,
       );
     } catch (e) {
       state = state.copyWith(loading: false, error: '加载失败: $e');

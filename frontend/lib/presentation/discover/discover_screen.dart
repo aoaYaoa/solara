@@ -27,6 +27,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         final source = ref.read(settingsStateProvider).searchSource;
         ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
       }
+      // 监听音源切换，切换时重新加载（切回已加载的音源则跳过）
+      ref.listenManual<SettingsState>(settingsStateProvider, (prev, next) {
+        if (prev?.searchSource != next.searchSource) {
+          ref.read(discoverStateProvider.notifier).ensureLoaded(source: next.searchSource);
+        }
+      });
     });
   }
 
@@ -49,12 +55,6 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final state = ref.watch(discoverStateProvider);
     final settings = ref.watch(settingsStateProvider);
     final colorScheme = Theme.of(context).colorScheme;
-
-    ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
-      if (prev?.searchSource != next.searchSource) {
-        ref.read(discoverStateProvider.notifier).loadAll(source: next.searchSource);
-      }
-    });
 
     return RefreshIndicator(
       onRefresh:

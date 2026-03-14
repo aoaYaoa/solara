@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:volume_controller/volume_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/queue_state.dart';
@@ -213,6 +214,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               _InfoRow(label: '艺术家', value: song.artist),
               _InfoRow(label: '专辑', value: song.album),
               _InfoRow(label: '来源', value: _sourceLabel(song.source)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.copy, size: 16),
+                  label: const Text('复制歌曲信息'),
+                  onPressed: () {
+                    final text = '${song.name} - ${song.artist}${song.album.isNotEmpty ? ' 《${song.album}》' : ''}';
+                    Clipboard.setData(ClipboardData(text: text));
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('歌曲信息已复制到剪贴板')),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -956,8 +973,8 @@ class _SleepTimerButton extends ConsumerWidget {
     final timerNotifier = ref.read(sleepTimerProvider.notifier);
     final player = ref.read(playerControllerProvider.notifier);
 
-    // Wire up the onExpired callback once
-    timerNotifier.onExpired = () => player.pause();
+    // Wire up the onExpired callback — fade out then pause
+    timerNotifier.onExpired = () => player.fadeOutAndPause();
 
     String label;
     if (timerState.active && timerState.remaining != null) {
