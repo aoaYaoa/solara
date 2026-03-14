@@ -126,14 +126,20 @@ class PersistentStateService {
     notifier.loadEntries(entries);
   }
 
-  Future<void> savePlaybackPosition(Duration position) async {
+  Future<void> savePlaybackPosition({required Duration position, Duration? duration}) async {
     await storage.setJson('lastPlaybackPosition', position.inMilliseconds);
+    if (duration != null) {
+      await storage.setJson('lastPlaybackDuration', duration.inMilliseconds);
+    }
   }
 
-  Future<Duration?> loadPlaybackPosition() async {
-    final ms = await storage.getJson<int>('lastPlaybackPosition');
-    if (ms == null) return null;
-    return Duration(milliseconds: ms);
+  Future<({Duration position, Duration? duration})> loadPlaybackPosition() async {
+    final posMs = await storage.getJson<int>('lastPlaybackPosition');
+    final durMs = await storage.getJson<int>('lastPlaybackDuration');
+    return (
+      position: posMs != null ? Duration(milliseconds: posMs) : Duration.zero,
+      duration: durMs != null ? Duration(milliseconds: durMs) : null,
+    );
   }
 
   Future<void> saveHistory(HistoryState state) async {

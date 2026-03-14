@@ -265,13 +265,13 @@ class PlayerController extends StateNotifier<PlayerState> {
       artworkUrl = repository.buildPicProxyUrl(picId: song.picId, source: song.source);
     }
     // 读取上次保存的播放进度
-    final savedPosition = await persistence.loadPlaybackPosition();
-    _restoredPosition = savedPosition;
+    final saved = await persistence.loadPlaybackPosition();
+    _restoredPosition = saved.position > Duration.zero ? saved.position : null;
     state = PlayerState(
       currentSong: song,
       isPlaying: false,
-      position: savedPosition ?? Duration.zero,
-      duration: null,
+      position: saved.position,
+      duration: saved.duration,
       lyrics: const [],
       currentLyricIndex: -1,
       artworkUrl: artworkUrl,
@@ -316,8 +316,8 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (state.isPlaying) {
       await engine.pause();
       state = state.copyWith(isPlaying: false);
-      // 保存当前进度，供下次启动恢复
-      persistence.savePlaybackPosition(state.position).ignore();
+      // 保存当前进度和总时长，供下次启动恢复
+      persistence.savePlaybackPosition(position: state.position, duration: state.duration).ignore();
     }
   }
 
