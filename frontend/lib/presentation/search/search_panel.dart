@@ -7,6 +7,7 @@ import '../../domain/models/discover.dart';
 import '../../services/player_controller.dart';
 import '../../services/app_config.dart';
 import '../../services/image_headers.dart' show proxyImageUrl;
+import '../../data/providers.dart';
 import '../../domain/state/favorites_state.dart';
 import '../../domain/state/queue_state.dart';
 import '../discover/leaderboard_detail_screen.dart';
@@ -231,6 +232,11 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                         final isPlaying =
                             playerState.isPlaying &&
                             playerState.currentSong?.id == song.id;
+                        final repo = ref.read(solaraRepositoryProvider);
+                        final picUrl = song.picUrl ??
+                            (song.picId.isNotEmpty
+                                ? repo.buildPicProxyUrl(picId: song.picId, source: song.source, size: 100)
+                                : null);
                         return ListTile(
                           onTap: () {
                             queue.replaceQueue(searchState.results, song);
@@ -253,31 +259,43 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          leading: IconButton(
-                            icon: Icon(
-                              isFavorite
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: isFavorite ? Colors.redAccent : null,
-                            ),
-                            onPressed: () => favorites.toggleFavorite(song),
-                          ),
-                          trailing: IconButton(
-                            icon: Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: isPlaying ? colorScheme.primary : null,
-                            ),
-                            onPressed: () {
-                              if (isPlaying) {
-                                player.toggle();
-                              } else {
-                                queue.replaceQueue(searchState.results, song);
-                                player.playSong(
-                                  song,
-                                  quality: settings.playbackQuality,
-                                );
-                              }
-                            },
+                          leading: picUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(
+                                    proxyImageUrl(picUrl),
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _songPlaceholder(colorScheme),
+                                  ),
+                                )
+                              : _songPlaceholder(colorScheme),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                                  color: isFavorite ? Colors.redAccent : null,
+                                ),
+                                onPressed: () => favorites.toggleFavorite(song),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  isPlaying ? Icons.pause : Icons.play_arrow,
+                                  color: isPlaying ? colorScheme.primary : null,
+                                ),
+                                onPressed: () {
+                                  if (isPlaying) {
+                                    player.toggle();
+                                  } else {
+                                    queue.replaceQueue(searchState.results, song);
+                                    player.playSong(song, quality: settings.playbackQuality);
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -474,6 +492,18 @@ class _LeaderboardCard extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _songPlaceholder(ColorScheme colorScheme) {
+  return Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Icon(Icons.music_note, size: 22, color: colorScheme.onSurfaceVariant),
+  );
 }
 
 // ── 分区标题 ──────────────────────────────────────────
