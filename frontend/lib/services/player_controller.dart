@@ -98,7 +98,8 @@ class PlayerController extends StateNotifier<PlayerState> {
     // 加载新歌曲期间不更新，避免引擎返回旧歌曲的 position/duration 覆盖新状态
     if (_isLoading) return;
     final position = engine.position;
-    final duration = engine.duration;
+    // 引擎未加载时 duration 为 null，保留 state 中已恢复的 duration
+    final duration = engine.duration ?? state.duration;
     if (position != state.position || duration != state.duration) {
       final currentIndex = _resolveLyricIndex(state.lyrics, position);
       state = state.copyWith(
