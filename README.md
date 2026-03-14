@@ -103,11 +103,8 @@ backend/
 └── pkg/            # 公共工具库
 ```
 
-## Cloudflare 配置
+## 配置
 
-- 基地址：`https://solara.uonoe.com`
-- 必需响应头：
-  - `Access-Control-Allow-Origin: https://solara.uonoe.com`
-  - `Access-Control-Allow-Credentials: true`
-  - `Set-Cookie: Secure; SameSite=None; Domain=solara.uonoe.com; Path=/; HttpOnly`
-- 云端状态存储：`/api/storage` key `solara_state`
+**API 基地址**：修改 `frontend/lib/services/app_config.dart` 中的 `baseUrl`。
+
+**后端部署**：支持自建服务或 Cloudflare Pages Functions，保持 `/api/login`、`/api/storage` 等接口协议不变即可。

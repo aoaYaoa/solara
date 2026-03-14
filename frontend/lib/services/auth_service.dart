@@ -22,19 +22,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     final token = prefs.getString(_kTokenKey);
     if (token == null || token.isEmpty) return;
     client.setToken(token);
-    try {
-      final resp = await client.dio.get('/api/storage', queryParameters: {'status': '1'});
-      if (resp.statusCode == 401 || resp.statusCode == 403) {
-        client.clearToken();
-        await prefs.remove(_kTokenKey);
-        // 尝试用缓存密码静默重登录
-        final ok = await autoRelogin();
-        if (!ok) state = const AuthState(isAuthed: false);
-        return;
-      }
-    } catch (_) {
-      // 网络错误时仍信任本地 token，避免离线时被踢出
-    }
+    // 本地有 token 直接信任，避免网络慢时长时间白屏
+    // token 真正过期时会在 API 调用时触发 autoRelogin
     state = const AuthState(isAuthed: true);
   }
 

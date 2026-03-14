@@ -51,7 +51,10 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
 
     Widget home;
     if (!_sessionRestored) {
-      home = const Scaffold(body: Center(child: CircularProgressIndicator()));
+      home = const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(child: CircularProgressIndicator()),
+      );
     } else if (auth.isAuthed) {
       home = const HomeScreen();
     } else {
