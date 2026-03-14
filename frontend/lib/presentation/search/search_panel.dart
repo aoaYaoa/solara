@@ -43,16 +43,14 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
 
   String _sourceLabel(String source) {
     switch (source) {
-      case 'netease':
-        return '网易';
-      case 'tencent':
-        return 'QQ';
-      case 'kugou':
-        return '酷狗';
-      case 'kuwo':
-        return '酷我';
-      default:
-        return source;
+      case 'netease': return '网易';
+      case 'tencent': return 'QQ';
+      case 'kugou':   return '酷狗';
+      case 'kuwo':    return '酷我';
+      case 'youtube': return 'YouTube';
+      case 'bilibili': return 'B站';
+      case 'jamendo': return 'Jamendo';
+      default: return source;
     }
   }
 

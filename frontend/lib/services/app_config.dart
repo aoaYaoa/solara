@@ -1,6 +1,6 @@
 class AppConfig {
   static const String baseUrl = 'https://solara.uonoe.com';
-  static const List<String> sources = ['netease', 'tencent', 'kugou', 'kuwo'];
+  static const List<String> sources = ['netease', 'tencent', 'kugou', 'kuwo', 'youtube', 'bilibili', 'jamendo'];
   static const List<String> genres = [
     '流行',
     '摇滚',

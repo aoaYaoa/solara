@@ -223,10 +223,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   String _sourceLabel(String source) {
     switch (source) {
-      case 'netease': return '网易云音乐';
-      case 'tencent': return 'QQ 音乐';
-      case 'kugou': return '酷狗音乐';
-      case 'kuwo': return '酷我音乐';
+      case 'netease':  return '网易云音乐';
+      case 'tencent':  return 'QQ 音乐';
+      case 'kugou':    return '酷狗音乐';
+      case 'kuwo':     return '酷我音乐';
+      case 'youtube':  return 'YouTube Music';
+      case 'bilibili': return 'Bilibili';
+      case 'jamendo':  return 'Jamendo';
       default: return source;
     }
   }
