@@ -59,7 +59,9 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   void _onSongComplete() {
-    // 告知 audioHandler 正在切歌，防止 completed 状态关闭灵动岛/锁屏
+    // 立即 seek 回起点，让 just_audio 脱离 completed 状态
+    // 避免 iOS 系统因 completed 状态关闭 Now Playing 会话（灵动岛/锁屏）
+    engine.seek(Duration.zero).ignore();
     audioHandler.beginSwitching();
     final queue = getQueue?.call() ?? [];
     final playMode = getPlayMode?.call() ?? PlayMode.list;
