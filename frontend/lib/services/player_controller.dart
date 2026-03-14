@@ -137,12 +137,14 @@ class PlayerController extends StateNotifier<PlayerState> {
     // 保留旧封面，切歌过渡期间用于锁屏/灵动岛显示
     final previousArtworkUrl = state.artworkUrl;
 
+    // 是否是同一首歌（恢复播放）：保留 position/duration；切换新歌才清零
+    final isSameSong = state.currentSong?.id == song.id && state.currentSong?.source == song.source;
     // 完整重置状态：直接构造新 PlayerState，避免 copyWith 的 nullable 遗留问题
     state = PlayerState(
       currentSong: song,
       isPlaying: state.isPlaying,
-      position: Duration.zero,
-      duration: null,
+      position: isSameSong ? state.position : Duration.zero,
+      duration: isSameSong ? state.duration : null,
       lyrics: const [],
       currentLyricIndex: -1,
       artworkUrl: previousArtworkUrl, // 保留旧封面直到新封面加载完
