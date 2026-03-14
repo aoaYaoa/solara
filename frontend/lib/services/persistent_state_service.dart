@@ -96,6 +96,9 @@ class PersistentStateService {
     if (data['themeMode'] != null) {
       notifier.setThemeMode(data['themeMode'].toString());
     }
+    if (data['eqPreset'] != null) {
+      notifier.setEqPreset(data['eqPreset'].toString());
+    }
   }
 
   Future<void> saveSettings(SettingsState state) async {
@@ -105,6 +108,7 @@ class PersistentStateService {
       'searchSource': state.searchSource,
       'debugMode': state.debugMode,
       'themeMode': state.themeMode,
+      'eqPreset': state.eqPreset,
     });
     await storage.setJson(
       'settingsUpdatedAt',

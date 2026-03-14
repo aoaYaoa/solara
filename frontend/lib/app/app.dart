@@ -5,6 +5,7 @@ import '../domain/state/settings_state.dart';
 import '../presentation/home/home_screen.dart';
 import '../presentation/login/login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/eq_service.dart';
 import '../services/player_controller.dart';
 import '../services/theme_controller.dart';
 import '../services/providers.dart';
@@ -32,6 +33,9 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
         final song = queue.songs[queue.currentIndex.clamp(0, queue.songs.length - 1)];
         await ref.read(playerControllerProvider.notifier).restoreLastSong(song);
       }
+      // 恢复 EQ 预设
+      final eqPreset = ref.read(settingsStateProvider).eqPreset;
+      await EqService.applyPreset(eqPreset);
       if (mounted) setState(() => _sessionRestored = true);
     });
   }

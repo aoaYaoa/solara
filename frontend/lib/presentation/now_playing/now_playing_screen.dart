@@ -9,6 +9,7 @@ import '../../services/image_headers.dart' show proxyImageUrl;
 import '../../domain/state/favorites_state.dart';
 import '../../domain/models/lyric_line.dart';
 import '../../services/player_controller.dart';
+import '../../services/eq_service.dart';
 import '../queue/queue_panel.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -175,6 +176,50 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         initialVolume: vol,
         useSystemVolume: useSystemVolume,
         onChanged: (v) => settingsNotifier.setVolume(v),
+      ),
+    );
+  }
+
+  void _showEqPicker(
+    BuildContext context,
+    String currentPreset,
+    SettingsStateNotifier settingsNotifier,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                '音效',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ...EqService.presets.map(
+              (preset) => ListTile(
+                title: Text(preset.label),
+                trailing: currentPreset == preset.id
+                    ? Icon(
+                        Icons.check_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  settingsNotifier.setEqPreset(preset.id);
+                  EqService.applyPreset(preset.id);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -508,8 +553,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   ) {
     final quality = settings.playbackQuality;
     final volume = settings.volume;
+    final eqPreset = settings.eqPreset;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -548,6 +594,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 ),
               ),
             ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.equalizer_rounded,
+              color: eqPreset != 'flat'
+                  ? primaryColor
+                  : Colors.white.withValues(alpha: 0.7),
+            ),
+            onPressed: () => _showEqPicker(context, eqPreset, settingsNotifier),
           ),
           IconButton(
             icon: Icon(

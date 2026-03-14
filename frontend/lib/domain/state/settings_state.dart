@@ -8,6 +8,7 @@ class SettingsState {
   final String searchSource;
   final bool debugMode;
   final String themeMode; // 'system', 'light', 'dark'
+  final String eqPreset;  // EQ preset id, default 'flat'
 
   const SettingsState({
     required this.playbackQuality,
@@ -15,6 +16,7 @@ class SettingsState {
     required this.searchSource,
     required this.debugMode,
     required this.themeMode,
+    required this.eqPreset,
   });
 
   SettingsState copyWith({
@@ -23,6 +25,7 @@ class SettingsState {
     String? searchSource,
     bool? debugMode,
     String? themeMode,
+    String? eqPreset,
   }) {
     return SettingsState(
       playbackQuality: playbackQuality ?? this.playbackQuality,
@@ -30,6 +33,7 @@ class SettingsState {
       searchSource: searchSource ?? this.searchSource,
       debugMode: debugMode ?? this.debugMode,
       themeMode: themeMode ?? this.themeMode,
+      eqPreset: eqPreset ?? this.eqPreset,
     );
   }
 
@@ -40,6 +44,7 @@ class SettingsState {
       searchSource: 'netease',
       debugMode: false,
       themeMode: 'system',
+      eqPreset: 'flat',
     );
   }
 }
@@ -73,6 +78,11 @@ class SettingsStateNotifier extends StateNotifier<SettingsState> {
 
   void setThemeMode(String mode) {
     state = state.copyWith(themeMode: mode);
+    persistence.saveSettings(state);
+  }
+
+  void setEqPreset(String presetId) {
+    state = state.copyWith(eqPreset: presetId);
     persistence.saveSettings(state);
   }
 }
