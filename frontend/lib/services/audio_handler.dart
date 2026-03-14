@@ -15,7 +15,12 @@ class SolaraAudioHandler extends BaseAudioHandler with SeekHandler {
     _player.playbackEventStream.listen((event) {
       _broadcastState();
     });
-    _player.playerStateStream.listen((_) {
+    _player.playerStateStream.listen((ps) {
+      // 播放完成时立即设切歌标志，避免 completed 状态传给系统关闭灵动岛
+      // onSkipNext/onSkipPrevious 或 _onSongComplete 会调用 endSwitching
+      if (ps.processingState == ProcessingState.completed) {
+        _isSwitching = true;
+      }
       _broadcastState();
     });
   }
