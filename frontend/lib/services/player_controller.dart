@@ -218,9 +218,23 @@ class PlayerController extends StateNotifier<PlayerState> {
         state = state.copyWith(lyrics: lyrics);
       } catch (_) {}
 
-      // 后台更新主题色（封面 URL 已在 immediateArtworkUrl 计算好）
+      // 后台获取真实封面图 URL（fetchPicUrl 返回实际图片地址，而非代理JSON接口）
       try {
-        final artworkUrl = immediateArtworkUrl ?? '';
+        String? realArtworkUrl;
+        if (song.picUrl != null && song.picUrl!.isNotEmpty) {
+          final encoded = Uri.encodeComponent(song.picUrl!);
+          realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
+        } else if (song.picId.isNotEmpty) {
+          final fetched = await repository.fetchPicUrl(picId: song.picId, source: song.source);
+          if (fetched.isNotEmpty) {
+            if (fetched.startsWith('http') && (fetched.contains('.126.net') || fetched.contains('.163.com') || fetched.contains('.qq.com'))) {
+              realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=${Uri.encodeComponent(fetched)}';
+            } else {
+              realArtworkUrl = fetched;
+            }
+          }
+        }
+        final artworkUrl = realArtworkUrl ?? immediateArtworkUrl ?? '';
         if (artworkUrl.isNotEmpty) {
           await themeController.updateFromArtwork(artworkUrl);
           state = state.copyWith(artworkUrl: artworkUrl);

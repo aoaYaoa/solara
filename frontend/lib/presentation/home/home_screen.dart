@@ -22,6 +22,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const SearchPanel(),
+      const DiscoverScreen(),
+      const MyScreen(),
+      const SettingsScreen(),
+    ];
+  }
 
   @override
   void reassemble() {
@@ -41,20 +53,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final settings = ref.watch(settingsStateProvider);
     final debugMode = settings.debugMode;
 
-    final pages = [
-      const SearchPanel(),
-      const DiscoverScreen(),
-      const MyScreen(),
-      const SettingsScreen(),
-    ];
-
     final isMac = Platform.isMacOS;
 
     if (isMac) {
       return _MacLayout(
         currentIndex: _currentIndex,
         tabs: _tabs,
-        pages: pages,
+        pages: _pages,
         debugMode: debugMode,
         onTap: (i) => setState(() => _currentIndex = i),
       );
@@ -63,7 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       body: Column(
         children: [
-          Expanded(child: IndexedStack(index: _currentIndex, children: pages)),
+          Expanded(child: IndexedStack(index: _currentIndex, children: _pages)),
           const PlayerBar(),
           if (debugMode) const DebugConsole(),
         ],
