@@ -159,19 +159,15 @@ class PlayerController extends StateNotifier<PlayerState> {
       audioHandler.endSwitching();
       state = state.copyWith(isPlaying: true);
 
-      // 立即用已知 duration 更新锁屏/灵动岛，封面暂用上一首（避免空白）
-      // 等待 duration 可用（just_audio setUrl 后 duration 可能稍有延迟）
-      Duration? dur = engine.duration;
-      if (dur == null) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        dur = engine.duration;
-      }
+      // 立即更新锁屏/灵动岛标题，封面用上一首过渡
       audioHandler.setNowPlaying(
         title: song.name,
         artist: song.artist,
         artworkUrl: previousArtworkUrl,
-        duration: dur,
+        duration: engine.duration,
       );
+      // 后台等待 duration 可用后再次更新（just_audio 异步加载）
+      _updateDurationWhenReady(song, previousArtworkUrl);
 
       // 后台加载歌词
       try {
@@ -221,6 +217,27 @@ class PlayerController extends StateNotifier<PlayerState> {
       }
       state = state.copyWith(error: e.toString(), isPlaying: false);
     }
+  }
+
+  void _updateDurationWhenReady(Song song, String? artworkUrl) {
+    // 轮询等待 duration 可用，最多等 5 秒
+    var attempts = 0;
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      final dur = engine.duration;
+      attempts++;
+      if (dur != null || attempts >= 25) {
+        timer.cancel();
+        if (dur != null) {
+          audioHandler.setNowPlaying(
+            title: song.name,
+            artist: song.artist,
+            artworkUrl: state.artworkUrl ?? artworkUrl,
+            duration: dur,
+          );
+          state = state.copyWith(duration: dur);
+        }
+      }
+    });
   }
 
   Future<void> toggle() async {
