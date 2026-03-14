@@ -69,10 +69,11 @@ class SolaraRepository {
     final response = await dio.getUri(uri);
     _ensureAuthed(response);
     final data = response.data;
+    DebugLogBus.add('Song url response: status=${response.statusCode} data=$data');
     if (data is Map && data['url'] != null) {
       return data['url'].toString();
     }
-    throw Exception('Invalid song url response');
+    throw Exception('Invalid song url response: $data');
   }
 
   Future<String> fetchLyric({

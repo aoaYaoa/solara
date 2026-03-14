@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/song.dart';
@@ -319,9 +320,11 @@ final playerControllerProvider =
         audioHandler.customEvent.listen((event) {});
         audioHandler.playbackState.listen((state) {});
 
-        // 应用持久化的音量
-        final volume = ref.read(settingsStateProvider).volume;
-        controller.setVolume(volume);
+        // 应用持久化的音量（macOS 使用系统音量，不设置内部增益）
+        if (!Platform.isMacOS) {
+          final volume = ref.read(settingsStateProvider).volume;
+          controller.setVolume(volume);
+        }
         return controller;
       },
     );

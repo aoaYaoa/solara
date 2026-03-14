@@ -37,12 +37,31 @@ class SolaraApi {
     required String source,
     required String quality,
   }) {
+    // 把非数字的品质标识转成比特率数字
+    final br = _normalizeBitrate(quality);
     return _buildProxyUri({
       'types': 'url',
       'id': songId,
       'source': source,
-      'br': quality,
+      'br': br,
     });
+  }
+
+  static String _normalizeBitrate(String quality) {
+    switch (quality.toUpperCase()) {
+      case 'FLAC':
+      case 'LOSSLESS':
+        return '999000';
+      case 'HQ':
+        return '320';
+      case 'SQ':
+        return '192';
+      case 'LQ':
+        return '128';
+      default:
+        // 已经是数字字符串则直接返回
+        return quality;
+    }
   }
 
   Uri buildLyricUri({required String songId, required String source}) {
