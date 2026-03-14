@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:volume_controller/volume_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/queue_state.dart';
 import '../../domain/state/settings_state.dart';
@@ -152,13 +154,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     }
   }
 
+
   void _showVolumeSlider(
     BuildContext context,
     SettingsState settings,
     SettingsStateNotifier settingsNotifier,
   ) {
-    final player = ref.read(playerControllerProvider.notifier);
+    final bool useSystemVolume = !Platform.isMacOS && !Platform.isWindows && !Platform.isLinux;
     var vol = settings.volume;
+    // 先读取当前系统音量（仅 iOS/Android 支持）
+    if (useSystemVolume) {
+      VolumeController().getVolume().then((v) {
+        vol = v;
+      });
+    }
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -184,15 +193,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           color: Theme.of(context).colorScheme.onSurfaceVariant),
                       Expanded(
                         child: Slider(
-                          value: vol,
+                          value: vol.clamp(0.0, 1.0),
                           min: 0.0,
                           max: 1.0,
                           divisions: 20,
                           label: '${(vol * 100).round()}%',
                           onChanged: (v) {
                             setModalState(() => vol = v);
+                            if (useSystemVolume) {
+                              VolumeController().setVolume(v);
+                            }
                             settingsNotifier.setVolume(v);
-                            player.setVolume(v);
                           },
                         ),
                       ),
