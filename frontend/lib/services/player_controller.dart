@@ -132,7 +132,7 @@ class PlayerController extends StateNotifier<PlayerState> {
     return -1;
   }
 
-  Future<void> playSong(Song song, {required String quality}) async {
+  Future<void> playSong(Song song, {required String quality, Duration? seekTo}) async {
     _isLoading = true;
     // 保留旧封面，切歌过渡期间用于锁屏/灵动岛显示
     final previousArtworkUrl = state.artworkUrl;
@@ -188,11 +188,15 @@ class PlayerController extends StateNotifier<PlayerState> {
         print('[PlayerController] play() error (ignored): $e');
       });
 
+      // 如果有指定起始位置，在解除 loading 锁之前 seek，避免 _tick() 用0覆盖
+      if (seekTo != null && seekTo > Duration.zero) {
+        await engine.seek(seekTo);
+      }
       // 引擎就绪，解除 loading 锁，让 _tick() 开始同步
       _isLoading = false;
       _isSwitching = false;
       audioHandler.endSwitching();
-      state = state.copyWith(isPlaying: true);
+      state = state.copyWith(isPlaying: true, position: seekTo ?? state.position);
 
       // 立即更新锁屏/灵动岛，使用已知封面和 duration
       audioHandler.setNowPlaying(
@@ -305,11 +309,7 @@ class PlayerController extends StateNotifier<PlayerState> {
       final quality = getQuality?.call() ?? '320';
       final seekTo = _restoredPosition;
       _restoredPosition = null;
-      await playSong(state.currentSong!, quality: quality);
-      if (seekTo != null && seekTo > Duration.zero) {
-        await engine.seek(seekTo);
-        state = state.copyWith(position: seekTo);
-      }
+      await playSong(state.currentSong!, quality: quality, seekTo: seekTo);
       return;
     }
     // 先更新状态让 UI 立即响应
