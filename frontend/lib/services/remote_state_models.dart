@@ -69,12 +69,38 @@ class RemoteSettingsState {
   }
 }
 
+class RemoteLocalSongsState {
+  final DateTime updatedAt;
+  final List<Map<String, dynamic>> songs;
+
+  const RemoteLocalSongsState({required this.updatedAt, required this.songs});
+
+  factory RemoteLocalSongsState.fromJson(Map<String, dynamic> json) {
+    final rawSongs = (json['songs'] as List<dynamic>? ?? const []);
+    final songs = rawSongs
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    return RemoteLocalSongsState(
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      songs: songs,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'updatedAt': updatedAt.toIso8601String(),
+      'songs': songs,
+    };
+  }
+}
+
 class RemoteStateSnapshot {
   final int version;
   final DateTime updatedAt;
   final RemoteQueueState? queue;
   final RemoteFavoritesState? favorites;
   final RemoteSettingsState? settings;
+  final RemoteLocalSongsState? localSongs;
 
   const RemoteStateSnapshot({
     required this.version,
@@ -82,6 +108,7 @@ class RemoteStateSnapshot {
     this.queue,
     this.favorites,
     this.settings,
+    this.localSongs,
   });
 
   factory RemoteStateSnapshot.fromJson(Map<String, dynamic> json) {
@@ -101,6 +128,11 @@ class RemoteStateSnapshot {
           : RemoteSettingsState.fromJson(
               Map<String, dynamic>.from(json['settings'] as Map),
             ),
+      localSongs: json['localSongs'] == null
+          ? null
+          : RemoteLocalSongsState.fromJson(
+              Map<String, dynamic>.from(json['localSongs'] as Map),
+            ),
     );
   }
 
@@ -111,6 +143,7 @@ class RemoteStateSnapshot {
       if (queue != null) 'queue': queue!.toJson(),
       if (favorites != null) 'favorites': favorites!.toJson(),
       if (settings != null) 'settings': settings!.toJson(),
+      if (localSongs != null) 'localSongs': localSongs!.toJson(),
     };
   }
 
@@ -118,6 +151,7 @@ class RemoteStateSnapshot {
     final mergedQueue = _pickNewestQueue(queue, other.queue);
     final mergedFavorites = _pickNewestFavorites(favorites, other.favorites);
     final mergedSettings = _pickNewestSettings(settings, other.settings);
+    final mergedLocalSongs = _pickNewest(localSongs, other.localSongs);
 
     final latestTimestamp = _latestTimestamp([
       updatedAt,
@@ -125,6 +159,7 @@ class RemoteStateSnapshot {
       mergedQueue?.updatedAt,
       mergedFavorites?.updatedAt,
       mergedSettings?.updatedAt,
+      mergedLocalSongs?.updatedAt,
     ]);
 
     return RemoteStateSnapshot(
@@ -133,6 +168,7 @@ class RemoteStateSnapshot {
       queue: mergedQueue,
       favorites: mergedFavorites,
       settings: mergedSettings,
+      localSongs: mergedLocalSongs,
     );
   }
 
@@ -157,6 +193,15 @@ class RemoteStateSnapshot {
   static RemoteSettingsState? _pickNewestSettings(
     RemoteSettingsState? current,
     RemoteSettingsState? incoming,
+  ) {
+    if (current == null) return incoming;
+    if (incoming == null) return current;
+    return incoming.updatedAt.isAfter(current.updatedAt) ? incoming : current;
+  }
+
+  static RemoteLocalSongsState? _pickNewest(
+    RemoteLocalSongsState? current,
+    RemoteLocalSongsState? incoming,
   ) {
     if (current == null) return incoming;
     if (incoming == null) return current;

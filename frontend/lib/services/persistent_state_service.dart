@@ -196,5 +196,7 @@ class PersistentStateService {
 
   Future<void> saveLocalSongs(List<Song> songs) async {
     await storage.setJson('localSongs', songs.map((s) => s.toJson()).toList());
+    await storage.setJson('localSongsUpdatedAt', DateTime.now().toUtc().toIso8601String());
+    syncController?.scheduleSync();
   }
 }

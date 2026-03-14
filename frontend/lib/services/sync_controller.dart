@@ -72,7 +72,11 @@ class SyncController {
     final settingsUpdatedAtRaw = await storage.getJson<String>('settingsUpdatedAt');
     final settings = _buildSettings(settingsRaw, settingsUpdatedAtRaw, now);
 
-    if (queue == null && favorites == null && settings == null) {
+    final localSongsRaw = await storage.getJson<List<dynamic>>('localSongs');
+    final localSongsUpdatedAtRaw = await storage.getJson<String>('localSongsUpdatedAt');
+    final localSongs = _buildLocalSongs(localSongsRaw, localSongsUpdatedAtRaw, now);
+
+    if (queue == null && favorites == null && settings == null && localSongs == null) {
       return null;
     }
 
@@ -80,6 +84,7 @@ class SyncController {
       queue?.updatedAt,
       favorites?.updatedAt,
       settings?.updatedAt,
+      localSongs?.updatedAt,
     ]);
 
     return RemoteStateSnapshot(
@@ -88,6 +93,7 @@ class SyncController {
       queue: queue,
       favorites: favorites,
       settings: settings,
+      localSongs: localSongs,
     );
   }
 
@@ -121,6 +127,17 @@ class SyncController {
     if (raw == null) return null;
     final updatedAt = _resolveUpdatedAt(updatedAtRaw, now: now, hasData: true);
     return RemoteSettingsState(updatedAt: updatedAt, data: raw);
+  }
+
+  RemoteLocalSongsState? _buildLocalSongs(
+    List<dynamic>? raw,
+    String? updatedAtRaw,
+    DateTime now,
+  ) {
+    if (raw == null) return null;
+    final updatedAt = _resolveUpdatedAt(updatedAtRaw, now: now, hasData: true);
+    final songs = raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    return RemoteLocalSongsState(updatedAt: updatedAt, songs: songs);
   }
 
   DateTime _resolveUpdatedAt(
@@ -169,6 +186,15 @@ class SyncController {
       await storage.setJson(
         'settingsUpdatedAt',
         settings.updatedAt.toIso8601String(),
+      );
+    }
+
+    final localSongs = snapshot.localSongs;
+    if (localSongs != null) {
+      await storage.setJson('localSongs', localSongs.songs);
+      await storage.setJson(
+        'localSongsUpdatedAt',
+        localSongs.updatedAt.toIso8601String(),
       );
     }
   }
