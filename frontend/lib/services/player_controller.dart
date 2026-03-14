@@ -16,6 +16,7 @@ import '../services/lyric_parser.dart';
 import '../services/theme_controller.dart';
 import '../services/auth_service.dart';
 import '../services/app_config.dart';
+import '../services/persistent_state_service.dart';
 import '../main.dart' show audioHandler, sharedPlayer;
 
 class PlayerController extends StateNotifier<PlayerState> {
@@ -23,6 +24,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   final AudioEngine engine;
   final ThemeController themeController;
   final AuthStateNotifier auth;
+  final PersistentStateService persistence;
   final void Function(Song)? onSongPlayed;
   Timer? _timer;
   StreamSubscription<void>? _completeSub;
@@ -33,12 +35,14 @@ class PlayerController extends StateNotifier<PlayerState> {
   String Function()? getQuality;
   bool _isLoading = false;
   bool _isSwitching = false;
+  Duration? _restoredPosition;
 
   PlayerController({
     required this.repository,
     required this.engine,
     required this.themeController,
     required this.auth,
+    required this.persistence,
     this.onSongPlayed,
     this.getQueue,
     this.getPlayMode,
@@ -252,7 +256,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   /// 启动时恢复上次播放的歌曲状态（仅显示，不自动播放）
-  void restoreLastSong(Song song) {
+  Future<void> restoreLastSong(Song song) async {
     String? artworkUrl;
     if (song.picUrl != null && song.picUrl!.isNotEmpty) {
       final encoded = Uri.encodeComponent(song.picUrl!);
@@ -260,10 +264,13 @@ class PlayerController extends StateNotifier<PlayerState> {
     } else if (song.picId.isNotEmpty) {
       artworkUrl = repository.buildPicProxyUrl(picId: song.picId, source: song.source);
     }
+    // 读取上次保存的播放进度
+    final savedPosition = await persistence.loadPlaybackPosition();
+    _restoredPosition = savedPosition;
     state = PlayerState(
       currentSong: song,
       isPlaying: false,
-      position: Duration.zero,
+      position: savedPosition ?? Duration.zero,
       duration: null,
       lyrics: const [],
       currentLyricIndex: -1,
@@ -279,10 +286,16 @@ class PlayerController extends StateNotifier<PlayerState> {
 
   Future<void> toggle() async {
     final wasPlaying = state.isPlaying;
-    // 引擎未加载（恢复状态后第一次播放）：直接调用 playSong 加载并播放
+    // 引擎未加载（恢复状态后第一次播放）：加载并跳到保存的进度
     if (!wasPlaying && state.currentSong != null && engine.duration == null) {
       final quality = getQuality?.call() ?? '320';
+      final seekTo = _restoredPosition;
+      _restoredPosition = null;
       await playSong(state.currentSong!, quality: quality);
+      if (seekTo != null && seekTo > Duration.zero) {
+        await engine.seek(seekTo);
+        state = state.copyWith(position: seekTo);
+      }
       return;
     }
     // 先更新状态让 UI 立即响应
@@ -303,6 +316,8 @@ class PlayerController extends StateNotifier<PlayerState> {
     if (state.isPlaying) {
       await engine.pause();
       state = state.copyWith(isPlaying: false);
+      // 保存当前进度，供下次启动恢复
+      persistence.savePlaybackPosition(state.position).ignore();
     }
   }
 
@@ -395,6 +410,7 @@ final playerControllerProvider =
           getCurrentQueueIndex: () => ref.read(queueStateProvider).currentIndex,
           setCurrentQueueIndex: (index) => ref.read(queueStateProvider.notifier).setCurrentIndex(index),
           getQuality: () => ref.read(settingsStateProvider).playbackQuality,
+          persistence: ref.read(persistentStateProvider),
         );
 
         // 注入锁屏/灵动岛/控制中心切歌回调

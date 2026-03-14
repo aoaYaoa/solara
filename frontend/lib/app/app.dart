@@ -30,7 +30,7 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
       final queue = ref.read(queueStateProvider);
       if (queue.songs.isNotEmpty) {
         final song = queue.songs[queue.currentIndex.clamp(0, queue.songs.length - 1)];
-        ref.read(playerControllerProvider.notifier).restoreLastSong(song);
+        await ref.read(playerControllerProvider.notifier).restoreLastSong(song);
       }
       if (mounted) setState(() => _sessionRestored = true);
     });
