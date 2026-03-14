@@ -26,7 +26,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
     const itemHeight = 60.0; // ListTile dense height + margin
     final viewportHeight = _scrollController.position.viewportDimension;
     final targetOffset =
-        (currentIndex * itemHeight) - (viewportHeight / 2) + (itemHeight / 2);
+        (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
     _scrollController.jumpTo(
       targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
     );
