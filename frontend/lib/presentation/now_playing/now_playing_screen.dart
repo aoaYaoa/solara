@@ -159,64 +159,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     BuildContext context,
     SettingsState settings,
     SettingsStateNotifier settingsNotifier,
-  ) {
+  ) async {
     final bool useSystemVolume = !Platform.isMacOS && !Platform.isWindows && !Platform.isLinux;
     var vol = settings.volume;
     // 先读取当前系统音量（仅 iOS/Android 支持）
     if (useSystemVolume) {
-      VolumeController().getVolume().then((v) {
-        vol = v;
-      });
+      try {
+        vol = await VolumeController().getVolume();
+      } catch (_) {}
     }
+    if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
-      builder: (_) => SafeArea(
-        child: StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '音量',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.volume_down,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      Expanded(
-                        child: Slider(
-                          value: vol.clamp(0.0, 1.0),
-                          min: 0.0,
-                          max: 1.0,
-                          divisions: 20,
-                          label: '${(vol * 100).round()}%',
-                          onChanged: (v) {
-                            setModalState(() => vol = v);
-                            if (useSystemVolume) {
-                              VolumeController().setVolume(v);
-                            }
-                            settingsNotifier.setVolume(v);
-                          },
-                        ),
-                      ),
-                      Icon(Icons.volume_up,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+      builder: (_) => _VolumeSheet(
+        initialVolume: vol,
+        useSystemVolume: useSystemVolume,
+        onChanged: (v) => settingsNotifier.setVolume(v),
       ),
     );
   }
@@ -805,5 +763,91 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       case PlayMode.random:
         return Icons.shuffle;
     }
+  }
+}
+
+class _VolumeSheet extends StatefulWidget {
+  final double initialVolume;
+  final bool useSystemVolume;
+  final ValueChanged<double> onChanged;
+
+  const _VolumeSheet({
+    required this.initialVolume,
+    required this.useSystemVolume,
+    required this.onChanged,
+  });
+
+  @override
+  State<_VolumeSheet> createState() => _VolumeSheetState();
+}
+
+class _VolumeSheetState extends State<_VolumeSheet> {
+  late double _vol;
+
+  @override
+  void initState() {
+    super.initState();
+    _vol = widget.initialVolume;
+    if (widget.useSystemVolume) {
+      VolumeController().listener((v) {
+        if (mounted) setState(() => _vol = v);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.useSystemVolume) {
+      VolumeController().removeListener();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '音量',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.volume_down,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                Expanded(
+                  child: Slider(
+                    value: _vol.clamp(0.0, 1.0),
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    label: '${(_vol * 100).round()}%',
+                    onChanged: (v) {
+                      setState(() => _vol = v);
+                      if (widget.useSystemVolume) {
+                        VolumeController().setVolume(v);
+                      }
+                      widget.onChanged(v);
+                    },
+                  ),
+                ),
+                Icon(Icons.volume_up,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -11,6 +11,7 @@ import '../search/search_panel.dart';
 import '../discover/discover_screen.dart';
 import '../my/my_screen.dart';
 import '../settings/settings_screen.dart';
+import '../now_playing/now_playing_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -277,7 +278,20 @@ class _SidebarPlayer extends ConsumerWidget {
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
 
-    return Container(
+    return GestureDetector(
+      onTap: state.currentSong == null
+          ? null
+          : () => Navigator.of(context).push(
+                PageRouteBuilder(
+                  pageBuilder: (_, animation, __) => FadeTransition(
+                    opacity: animation,
+                    child: const NowPlayingScreen(),
+                  ),
+                  fullscreenDialog: true,
+                  transitionDuration: const Duration(milliseconds: 400),
+                ),
+              ),
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -378,6 +392,7 @@ class _SidebarPlayer extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
