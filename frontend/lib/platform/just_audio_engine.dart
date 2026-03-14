@@ -9,7 +9,9 @@ class JustAudioEngine implements AudioEngine {
 
   @override
   Stream<void> get onComplete => _player.playerStateStream
-      .where((s) => s.processingState == ProcessingState.completed)
+      .map((s) => s.processingState == ProcessingState.completed)
+      .distinct()
+      .where((isCompleted) => isCompleted)
       .map((_) {});
 
   @override
