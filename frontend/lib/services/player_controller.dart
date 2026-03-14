@@ -137,10 +137,18 @@ class PlayerController extends StateNotifier<PlayerState> {
       setCurrentQueueIndex?.call(songIndex);
     }
 
+    // 如果歌曲自带封面 URL，立即计算好，不必等后台加载
+    String? immediateArtworkUrl = previousArtworkUrl;
+    if (song.picUrl != null && song.picUrl!.isNotEmpty) {
+      final encoded = Uri.encodeComponent(song.picUrl!);
+      immediateArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
+    }
+
     // 更新锁屏/通知栏信息
     audioHandler.setNowPlaying(
       title: song.name,
       artist: song.artist,
+      artworkUrl: immediateArtworkUrl,
     );
 
     try {
@@ -159,15 +167,15 @@ class PlayerController extends StateNotifier<PlayerState> {
       audioHandler.endSwitching();
       state = state.copyWith(isPlaying: true);
 
-      // 立即更新锁屏/灵动岛标题，封面用上一首过渡
+      // 立即更新锁屏/灵动岛，使用已知封面和 duration
       audioHandler.setNowPlaying(
         title: song.name,
         artist: song.artist,
-        artworkUrl: previousArtworkUrl,
+        artworkUrl: immediateArtworkUrl,
         duration: engine.duration,
       );
       // 后台等待 duration 可用后再次更新（just_audio 异步加载）
-      _updateDurationWhenReady(song, previousArtworkUrl);
+      _updateDurationWhenReady(song, immediateArtworkUrl);
 
       // 后台加载歌词
       try {
@@ -179,10 +187,12 @@ class PlayerController extends StateNotifier<PlayerState> {
         state = state.copyWith(lyrics: lyrics);
       } catch (_) {}
 
-      // 后台加载封面
+      // 后台加载封面（若 picUrl 已知则直接用，否则 fetch）
       try {
         String artworkUrl;
-        if (song.picUrl != null && song.picUrl!.isNotEmpty) {
+        if (immediateArtworkUrl != null && immediateArtworkUrl != previousArtworkUrl) {
+          artworkUrl = immediateArtworkUrl;
+        } else if (song.picUrl != null && song.picUrl!.isNotEmpty) {
           final encoded = Uri.encodeComponent(song.picUrl!);
           artworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
         } else {
