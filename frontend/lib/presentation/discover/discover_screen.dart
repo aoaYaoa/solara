@@ -24,11 +24,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_initialLoaded) {
         _initialLoaded = true;
-        final discoverState = ref.read(discoverStateProvider);
-        if (discoverState.songLists.isEmpty && !discoverState.loading) {
-          final source = ref.read(settingsStateProvider).searchSource;
-          ref.read(discoverStateProvider.notifier).loadAll(source: source);
-        }
+        final source = ref.read(settingsStateProvider).searchSource;
+        ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
       }
     });
   }

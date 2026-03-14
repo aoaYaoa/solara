@@ -212,7 +212,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               _InfoRow(label: '艺术家', value: song.artist),
               _InfoRow(label: '专辑', value: song.album),
               _InfoRow(label: '来源', value: _sourceLabel(song.source)),
-              _InfoRow(label: 'ID', value: song.id),
             ],
           ),
         ),

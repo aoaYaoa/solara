@@ -53,6 +53,12 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
   DiscoverNotifier(this._ref) : super(const DiscoverState());
 
+  /// 如果数据已加载则跳过，避免每次切换 tab 重新请求
+  Future<void> ensureLoaded({required String source}) async {
+    if (state.leaderboards.isNotEmpty || state.loading) return;
+    await loadAll(source: source);
+  }
+
   Future<void> loadAll({String source = 'kw'}) async {
     state = state.copyWith(
       loading: true,

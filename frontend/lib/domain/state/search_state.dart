@@ -3,6 +3,7 @@ import '../models/song.dart';
 import '../../data/solara_repository.dart';
 import '../../data/providers.dart';
 import '../../services/auth_service.dart';
+import '../../services/providers.dart';
 
 class SearchState {
   final String keyword;
@@ -12,6 +13,7 @@ class SearchState {
   final bool hasMore;
   final String? error;
   final List<Song> results;
+  final List<String> history; // 搜索历史词，最新在前
 
   const SearchState({
     required this.keyword,
@@ -21,6 +23,7 @@ class SearchState {
     required this.hasMore,
     required this.error,
     required this.results,
+    this.history = const [],
   });
 
   SearchState copyWith({
@@ -31,6 +34,7 @@ class SearchState {
     bool? hasMore,
     String? error,
     List<Song>? results,
+    List<String>? history,
   }) {
     return SearchState(
       keyword: keyword ?? this.keyword,
@@ -40,6 +44,7 @@ class SearchState {
       hasMore: hasMore ?? this.hasMore,
       error: error,
       results: results ?? this.results,
+      history: history ?? this.history,
     );
   }
 
@@ -52,6 +57,7 @@ class SearchState {
       hasMore: true,
       error: null,
       results: [],
+      history: [],
     );
   }
 }
@@ -63,8 +69,37 @@ class SearchStateNotifier extends StateNotifier<SearchState> {
   SearchStateNotifier({required this.repository, this.onAuthRequired})
     : super(SearchState.initial());
 
+  void Function(List<String>)? _onHistoryChanged;
+
+  void setOnHistoryChanged(void Function(List<String>) cb) {
+    _onHistoryChanged = cb;
+  }
+
+  void loadHistory(List<String> history) {
+    state = state.copyWith(history: history);
+  }
+
+  void _addHistory(String keyword) {
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return;
+    final updated = [trimmed, ...state.history.where((h) => h != trimmed)];
+    state = state.copyWith(history: updated.take(20).toList());
+    _onHistoryChanged?.call(state.history);
+  }
+
+  void removeHistory(String keyword) {
+    state = state.copyWith(history: state.history.where((h) => h != keyword).toList());
+    _onHistoryChanged?.call(state.history);
+  }
+
+  void clearHistory() {
+    state = state.copyWith(history: []);
+    _onHistoryChanged?.call(state.history);
+  }
+
   Future<void> search(String keyword) async {
     if (keyword.trim().isEmpty) return;
+    _addHistory(keyword.trim());
     state = state.copyWith(
       loading: true,
       error: null,
@@ -125,14 +160,19 @@ class SearchStateNotifier extends StateNotifier<SearchState> {
   }
 
   void clearResults() {
-    state = SearchState.initial().copyWith(source: state.source);
+    state = SearchState.initial().copyWith(source: state.source, history: state.history);
   }
 }
 
 final searchStateProvider =
-    StateNotifierProvider<SearchStateNotifier, SearchState>(
-      (ref) => SearchStateNotifier(
+    StateNotifierProvider<SearchStateNotifier, SearchState>((ref) {
+      final notifier = SearchStateNotifier(
         repository: ref.watch(solaraRepositoryProvider),
         onAuthRequired: () => ref.read(authStateProvider.notifier).logout(),
-      ),
-    );
+      );
+      // 持久化搜索历史
+      final persistence = ref.read(persistentStateProvider);
+      persistence.loadSearchHistory(notifier);
+      notifier.setOnHistoryChanged((history) => persistence.saveSearchHistory(history));
+      return notifier;
+    });

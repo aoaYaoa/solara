@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:solara_flutter/domain/models/song.dart';
 import 'package:solara_flutter/services/player_controller.dart';
+import 'package:solara_flutter/services/persistent_state_service.dart';
+import 'package:solara_flutter/services/storage_service.dart';
 import 'package:solara_flutter/platform/audio_engine.dart';
 import 'package:solara_flutter/data/solara_repository.dart';
 import 'package:solara_flutter/data/api/solara_api.dart';
@@ -32,6 +35,9 @@ class FakeEngine implements AudioEngine {
   bool _playing = false;
   Duration _position = Duration.zero;
   Duration? _duration;
+  double _volume = 1.0;
+  double _speed = 1.0;
+  final _completeController = StreamController<void>.broadcast();
 
   @override
   bool get isPlaying => _playing;
@@ -43,19 +49,22 @@ class FakeEngine implements AudioEngine {
   Duration? get duration => _duration;
 
   @override
-  Future<void> pause() async {
-    _playing = false;
-  }
+  Stream<void> get onComplete => _completeController.stream;
 
   @override
-  Future<void> play() async {
-    _playing = true;
-  }
+  double get volume => _volume;
 
   @override
-  Future<void> seek(Duration position) async {
-    _position = position;
-  }
+  double get speed => _speed;
+
+  @override
+  Future<void> pause() async { _playing = false; }
+
+  @override
+  Future<void> play() async { _playing = true; }
+
+  @override
+  Future<void> seek(Duration position) async { _position = position; }
 
   @override
   Future<void> setSource(String url) async {
@@ -68,6 +77,12 @@ class FakeEngine implements AudioEngine {
     _playing = false;
     _position = Duration.zero;
   }
+
+  @override
+  Future<void> setVolume(double volume) async { _volume = volume; }
+
+  @override
+  Future<void> setSpeed(double speed) async { _speed = speed; }
 }
 
 class FakeThemeController extends ThemeController {
@@ -86,6 +101,7 @@ void main() {
       engine: FakeEngine(),
       themeController: FakeThemeController(),
       auth: FakeAuth(),
+      persistence: PersistentStateService(storage: StorageService()),
     );
     final song = Song(
       id: '1',

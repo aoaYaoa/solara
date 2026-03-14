@@ -6,6 +6,7 @@ import '../domain/state/favorites_state.dart';
 import '../domain/state/history_state.dart';
 import '../domain/state/playlist_state.dart';
 import '../domain/state/queue_state.dart';
+import '../domain/state/search_state.dart';
 import '../domain/state/settings_state.dart';
 import 'storage_service.dart';
 import 'sync_controller.dart';
@@ -172,5 +173,16 @@ class PersistentStateService {
   Future<void> savePlaylists(PlaylistState state) async {
     final payload = state.playlists.map((p) => p.toJson()).toList();
     await storage.setJson('userPlaylists', payload);
+  }
+
+  Future<void> loadSearchHistory(SearchStateNotifier notifier) async {
+    final data = await storage.getJson<List<dynamic>>('searchHistory');
+    if (data == null) return;
+    final history = data.map((e) => e.toString()).toList();
+    notifier.loadHistory(history);
+  }
+
+  Future<void> saveSearchHistory(List<String> history) async {
+    await storage.setJson('searchHistory', history);
   }
 }

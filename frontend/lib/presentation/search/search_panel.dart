@@ -27,6 +27,10 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final source = ref.read(settingsStateProvider).searchSource;
+      ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
+    });
   }
 
   void _onScroll() {
@@ -228,6 +232,10 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                             playerState.isPlaying &&
                             playerState.currentSong?.id == song.id;
                         return ListTile(
+                          onTap: () {
+                            queue.replaceQueue(searchState.results, song);
+                            player.playSong(song, quality: settings.playbackQuality);
+                          },
                           title: Text(
                             song.name,
                             maxLines: 1,
@@ -263,7 +271,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                               if (isPlaying) {
                                 player.toggle();
                               } else {
-                                queue.addSong(song);
+                                queue.replaceQueue(searchState.results, song);
                                 player.playSong(
                                   song,
                                   quality: settings.playbackQuality,
@@ -286,11 +294,46 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     dynamic notifier,
   ) {
     final discoverState = ref.watch(discoverStateProvider);
+    final searchHistory = ref.watch(searchStateProvider).history;
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── 搜索历史 ──────────────────────────────────
+          if (searchHistory.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('搜索历史', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  GestureDetector(
+                    onTap: () => ref.read(searchStateProvider.notifier).clearHistory(),
+                    child: Icon(Icons.delete_outline, size: 18, color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: searchHistory.map((h) {
+                  return InputChip(
+                    label: Text(h, style: const TextStyle(fontSize: 13)),
+                    onPressed: () {
+                      _controller.text = h;
+                      notifier.search(h);
+                    },
+                    deleteIcon: Icon(Icons.close, size: 14, color: colorScheme.onSurfaceVariant),
+                    onDeleted: () => ref.read(searchStateProvider.notifier).removeHistory(h),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
           // ── 猜你喜欢（快捷搜索） ──────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
