@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/song.dart';
@@ -137,12 +136,17 @@ class PlayerController extends StateNotifier<PlayerState> {
       setCurrentQueueIndex?.call(songIndex);
     }
 
-    // 如果歌曲自带封面 URL，立即计算好，不必等后台加载
-    String? immediateArtworkUrl = previousArtworkUrl;
+    // 立即计算封面 URL（无需网络请求）
+    String? immediateArtworkUrl;
     if (song.picUrl != null && song.picUrl!.isNotEmpty) {
       final encoded = Uri.encodeComponent(song.picUrl!);
       immediateArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
+    } else if (song.picId.isNotEmpty) {
+      // 直接构建代理 URL，与 fetchPicUrl 返回结果一致，避免网络请求延迟
+      final proxyUri = repository.buildPicProxyUrl(picId: song.picId, source: song.source);
+      immediateArtworkUrl = proxyUri;
     }
+    immediateArtworkUrl ??= previousArtworkUrl;
 
     // 更新锁屏/通知栏信息
     audioHandler.setNowPlaying(
@@ -187,28 +191,19 @@ class PlayerController extends StateNotifier<PlayerState> {
         state = state.copyWith(lyrics: lyrics);
       } catch (_) {}
 
-      // 后台加载封面（若 picUrl 已知则直接用，否则 fetch）
+      // 后台更新主题色（封面 URL 已在 immediateArtworkUrl 计算好）
       try {
-        String artworkUrl;
-        if (immediateArtworkUrl != null && immediateArtworkUrl != previousArtworkUrl) {
-          artworkUrl = immediateArtworkUrl;
-        } else if (song.picUrl != null && song.picUrl!.isNotEmpty) {
-          final encoded = Uri.encodeComponent(song.picUrl!);
-          artworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
-        } else {
-          artworkUrl = await repository.fetchPicUrl(
-            picId: song.picId,
-            source: song.source,
+        final artworkUrl = immediateArtworkUrl ?? '';
+        if (artworkUrl.isNotEmpty) {
+          await themeController.updateFromArtwork(artworkUrl);
+          state = state.copyWith(artworkUrl: artworkUrl);
+          audioHandler.setNowPlaying(
+            title: song.name,
+            artist: song.artist,
+            artworkUrl: artworkUrl,
+            duration: engine.duration,
           );
         }
-        await themeController.updateFromArtwork(artworkUrl);
-        state = state.copyWith(artworkUrl: artworkUrl);
-        audioHandler.setNowPlaying(
-          title: song.name,
-          artist: song.artist,
-          artworkUrl: artworkUrl,
-          duration: engine.duration,
-        );
       } catch (_) {}
 
       onSongPlayed?.call(song);

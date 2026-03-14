@@ -94,6 +94,18 @@ class SolaraRepository {
     return response.data.toString();
   }
 
+  /// 直接本地计算封面代理 URL，不发网络请求
+  String buildPicProxyUrl({
+    required String picId,
+    required String source,
+    int size = 300,
+  }) {
+    final uri = _resolve(
+      api.buildPicUri(picId: picId, source: source, size: size),
+    );
+    return uri.toString();
+  }
+
   Future<String> fetchPicUrl({
     required String picId,
     required String source,
