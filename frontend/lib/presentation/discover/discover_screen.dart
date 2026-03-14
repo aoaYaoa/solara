@@ -4,6 +4,7 @@ import '../../domain/state/discover_state.dart';
 import '../../domain/models/discover.dart';
 import '../../services/image_headers.dart' show proxyImageUrl;
 import '../../domain/state/settings_state.dart';
+import '../../services/app_config.dart';
 import 'song_list_detail_screen.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
