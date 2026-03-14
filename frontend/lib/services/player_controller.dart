@@ -320,11 +320,7 @@ final playerControllerProvider =
         audioHandler.customEvent.listen((event) {});
         audioHandler.playbackState.listen((state) {});
 
-        // 应用持久化的音量（macOS 使用系统音量，不设置内部增益）
-        if (!Platform.isMacOS) {
-          final volume = ref.read(settingsStateProvider).volume;
-          controller.setVolume(volume);
-        }
+        // 内部音量始终为1.0，跟随系统音量
         return controller;
       },
     );
