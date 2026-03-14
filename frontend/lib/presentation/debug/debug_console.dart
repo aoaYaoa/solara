@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/debug_log_bus.dart';
 
@@ -10,11 +11,13 @@ class DebugConsole extends StatefulWidget {
 
 class _DebugConsoleState extends State<DebugConsole> {
   final List<String> logs = [];
+  StreamSubscription<String>? _sub;
 
   @override
   void initState() {
     super.initState();
-    DebugLogBus.stream.listen((event) {
+    _sub = DebugLogBus.stream.listen((event) {
+      if (!mounted) return;
       setState(() {
         logs.add(event);
         if (logs.length > 200) {
@@ -22,6 +25,12 @@ class _DebugConsoleState extends State<DebugConsole> {
         }
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   @override

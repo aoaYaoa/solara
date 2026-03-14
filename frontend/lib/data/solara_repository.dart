@@ -70,8 +70,15 @@ class SolaraRepository {
     _ensureAuthed(response);
     final data = response.data;
     DebugLogBus.add('Song url response: status=${response.statusCode} data=$data');
+    // API 可能返回 {url: ...} 或 [{url: ...}] 或直接字符串
     if (data is Map && data['url'] != null) {
       return data['url'].toString();
+    }
+    if (data is List && data.isNotEmpty && data[0] is Map && data[0]['url'] != null) {
+      return data[0]['url'].toString();
+    }
+    if (data is String && data.startsWith('http')) {
+      return data;
     }
     throw Exception('Invalid song url response: $data');
   }
