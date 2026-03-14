@@ -394,6 +394,11 @@ class PlayerController extends StateNotifier<PlayerState> {
     await engine.setVolume(volume);
   }
 
+  Future<void> setSpeed(double speed) async {
+    await engine.setSpeed(speed);
+    state = state.copyWith(speed: speed);
+  }
+
   @override
   void dispose() {
     _timer?.cancel();

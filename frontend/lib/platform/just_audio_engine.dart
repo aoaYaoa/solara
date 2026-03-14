@@ -55,4 +55,12 @@ class JustAudioEngine implements AudioEngine {
   Future<void> setSource(String url) async {
     await _player.setUrl(url);
   }
+
+  @override
+  double get speed => _player.speed;
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    await _player.setSpeed(speed);
+  }
 }

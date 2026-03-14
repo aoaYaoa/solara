@@ -10,6 +10,7 @@ class PlayerState {
   final int currentLyricIndex;
   final String? artworkUrl;
   final String? error;
+  final double speed;
 
   const PlayerState({
     required this.currentSong,
@@ -20,6 +21,7 @@ class PlayerState {
     required this.currentLyricIndex,
     required this.artworkUrl,
     required this.error,
+    this.speed = 1.0,
   });
 
   /// [clearArtworkUrl] 为 true 时将 artworkUrl 重置为 null（因为 String? 的 copyWith 无法通过传 null 来清除）
@@ -33,6 +35,7 @@ class PlayerState {
     String? artworkUrl,
     bool clearArtworkUrl = false,
     String? error,
+    double? speed,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -43,6 +46,7 @@ class PlayerState {
       currentLyricIndex: currentLyricIndex ?? this.currentLyricIndex,
       artworkUrl: clearArtworkUrl ? null : (artworkUrl ?? this.artworkUrl),
       error: error,
+      speed: speed ?? this.speed,
     );
   }
 

@@ -36,6 +36,11 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
       // 恢复 EQ 预设
       final eqPreset = ref.read(settingsStateProvider).eqPreset;
       await EqService.applyPreset(eqPreset);
+      // 恢复播放速度
+      final speed = ref.read(settingsStateProvider).playbackSpeed;
+      if (speed != 1.0) {
+        await ref.read(playerControllerProvider.notifier).setSpeed(speed);
+      }
       if (mounted) setState(() => _sessionRestored = true);
     });
   }

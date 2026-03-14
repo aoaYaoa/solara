@@ -230,6 +230,50 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     }
   }
 
+  void _showSpeedPicker(
+    BuildContext context,
+    double currentSpeed,
+    PlayerController controller,
+    SettingsStateNotifier settingsNotifier,
+  ) {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                '播放速度',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ...speeds.map(
+              (s) => ListTile(
+                title: Text(s == 1.0 ? '正常 (1.0x)' : '${s}x'),
+                trailing: currentSpeed == s
+                    ? Icon(Icons.check_rounded,
+                        color: Theme.of(context).colorScheme.primary)
+                    : null,
+                onTap: () {
+                  controller.setSpeed(s);
+                  settingsNotifier.setPlaybackSpeed(s);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showEqPicker(
     BuildContext context,
     String currentPreset,
@@ -396,7 +440,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   ],
                 ),
               ),
-              _buildActionRow(isFav, song, favorites, primaryColor, settings, ref.read(settingsStateProvider.notifier)),
+              _buildActionRow(isFav, song, favorites, primaryColor, settings, ref.read(settingsStateProvider.notifier), controller),
               _buildProgressBar(position, duration, controller),
               _buildMainControls(
                 isPlaying: isPlaying,
@@ -600,10 +644,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     Color primaryColor,
     SettingsState settings,
     SettingsStateNotifier settingsNotifier,
+    PlayerController controller,
   ) {
     final quality = settings.playbackQuality;
     final volume = settings.volume;
     final eqPreset = settings.eqPreset;
+    final speed = settings.playbackSpeed;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       child: Row(
@@ -669,6 +715,28 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               color: Colors.white.withValues(alpha: 0.7),
             ),
             onPressed: () => _showVolumeSlider(context, settings, settingsNotifier),
+          ),
+          GestureDetector(
+            onTap: () => _showSpeedPicker(context, speed, controller, settingsNotifier),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: speed != 1.0
+                      ? primaryColor.withValues(alpha: 0.7)
+                      : Colors.white.withValues(alpha: 0.4),
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                speed == 1.0 ? '1x' : '${speed}x',
+                style: TextStyle(
+                  color: speed != 1.0 ? primaryColor : Colors.white.withValues(alpha: 0.7),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ],
       ),

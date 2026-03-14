@@ -99,6 +99,10 @@ class PersistentStateService {
     if (data['eqPreset'] != null) {
       notifier.setEqPreset(data['eqPreset'].toString());
     }
+    if (data['playbackSpeed'] != null) {
+      final speed = double.tryParse(data['playbackSpeed'].toString());
+      if (speed != null) notifier.setPlaybackSpeed(speed);
+    }
   }
 
   Future<void> saveSettings(SettingsState state) async {
@@ -109,6 +113,7 @@ class PersistentStateService {
       'debugMode': state.debugMode,
       'themeMode': state.themeMode,
       'eqPreset': state.eqPreset,
+      'playbackSpeed': state.playbackSpeed,
     });
     await storage.setJson(
       'settingsUpdatedAt',

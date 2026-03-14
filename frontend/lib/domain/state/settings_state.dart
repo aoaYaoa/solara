@@ -9,6 +9,7 @@ class SettingsState {
   final bool debugMode;
   final String themeMode; // 'system', 'light', 'dark'
   final String eqPreset;  // EQ preset id, default 'flat'
+  final double playbackSpeed; // 播放速度，默认 1.0
 
   const SettingsState({
     required this.playbackQuality,
@@ -17,6 +18,7 @@ class SettingsState {
     required this.debugMode,
     required this.themeMode,
     required this.eqPreset,
+    this.playbackSpeed = 1.0,
   });
 
   SettingsState copyWith({
@@ -26,6 +28,7 @@ class SettingsState {
     bool? debugMode,
     String? themeMode,
     String? eqPreset,
+    double? playbackSpeed,
   }) {
     return SettingsState(
       playbackQuality: playbackQuality ?? this.playbackQuality,
@@ -34,6 +37,7 @@ class SettingsState {
       debugMode: debugMode ?? this.debugMode,
       themeMode: themeMode ?? this.themeMode,
       eqPreset: eqPreset ?? this.eqPreset,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 
@@ -45,6 +49,7 @@ class SettingsState {
       debugMode: false,
       themeMode: 'system',
       eqPreset: 'flat',
+      playbackSpeed: 1.0,
     );
   }
 }
@@ -83,6 +88,11 @@ class SettingsStateNotifier extends StateNotifier<SettingsState> {
 
   void setEqPreset(String presetId) {
     state = state.copyWith(eqPreset: presetId);
+    persistence.saveSettings(state);
+  }
+
+  void setPlaybackSpeed(double speed) {
+    state = state.copyWith(playbackSpeed: speed.clamp(0.25, 2.0));
     persistence.saveSettings(state);
   }
 }

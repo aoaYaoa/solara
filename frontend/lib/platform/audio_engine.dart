@@ -13,6 +13,9 @@ abstract class AudioEngine {
   Future<void> setSource(String url);
   Future<void> setVolume(double volume);
   double get volume;
+
+  double get speed;
+  Future<void> setSpeed(double speed);
 }
 
 class FakeAudioEngine implements AudioEngine {
@@ -25,6 +28,7 @@ class FakeAudioEngine implements AudioEngine {
   Duration _position = Duration.zero;
   Duration? _duration;
   double _volume = 1.0;
+  double _speed = 1.0;
 
   @override
   bool get isPlaying => _playing;
@@ -68,5 +72,13 @@ class FakeAudioEngine implements AudioEngine {
   Future<void> setSource(String url) async {
     _position = Duration.zero;
     _duration = null;
+  }
+
+  @override
+  double get speed => _speed;
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    _speed = speed;
   }
 }
