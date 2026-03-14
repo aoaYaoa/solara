@@ -4,11 +4,36 @@ import '../../domain/state/queue_state.dart';
 import '../../domain/state/settings_state.dart';
 import '../../services/player_controller.dart';
 
-class QueuePanel extends ConsumerWidget {
+class QueuePanel extends ConsumerStatefulWidget {
   const QueuePanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QueuePanel> createState() => _QueuePanelState();
+}
+
+class _QueuePanelState extends ConsumerState<QueuePanel> {
+  final ScrollController _scrollController = ScrollController();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0; // ListTile dense height + margin
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset =
+        (currentIndex * itemHeight) - (viewportHeight / 2) + (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final queueState = ref.watch(queueStateProvider);
     final queue = ref.read(queueStateProvider.notifier);
     final player = ref.read(playerControllerProvider.notifier);
@@ -29,7 +54,18 @@ class QueuePanel extends ConsumerWidget {
       );
     }
 
+    if (!_didInitialScroll) {
+      _didInitialScroll = true;
+      final currentIndex = queueState.songs.indexWhere(
+        (s) => s.id == playerState.currentSong?.id,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCurrentSong(currentIndex, queueState.songs.length);
+      });
+    }
+
     return ListView.builder(
+      controller: _scrollController,
       itemCount: queueState.songs.length,
       itemBuilder: (context, index) {
         final song = queueState.songs[index];
