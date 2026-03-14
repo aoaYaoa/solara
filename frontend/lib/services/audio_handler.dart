@@ -6,6 +6,10 @@ import 'package:just_audio/just_audio.dart';
 class SolaraAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer _player;
 
+  /// 由 PlayerController 注入，响应锁屏/灵动岛/控制中心切歌
+  Future<void> Function()? onSkipNext;
+  Future<void> Function()? onSkipPrevious;
+
   SolaraAudioHandler(this._player) {
     // Forward player state to audio_service
     _player.playbackEventStream.listen((event) {
@@ -86,12 +90,11 @@ class SolaraAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() async {
-    // Handled by PlayerController via customAction
-    await customAction('skipNext');
+    await onSkipNext?.call();
   }
 
   @override
   Future<void> skipToPrevious() async {
-    await customAction('skipPrevious');
+    await onSkipPrevious?.call();
   }
 }

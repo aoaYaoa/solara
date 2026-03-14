@@ -316,9 +316,27 @@ final playerControllerProvider =
           getQuality: () => ref.read(settingsStateProvider).playbackQuality,
         );
 
-        // Handle lock screen skip controls
-        audioHandler.customEvent.listen((event) {});
-        audioHandler.playbackState.listen((state) {});
+        // 注入锁屏/灵动岛/控制中心切歌回调
+        audioHandler.onSkipNext = () async {
+          final q = ref.read(queueStateProvider);
+          final settings = ref.read(settingsStateProvider);
+          await controller.skipNext(
+            queue: q.songs,
+            currentIndex: q.currentIndex,
+            playMode: q.playMode,
+            quality: settings.playbackQuality,
+          );
+        };
+        audioHandler.onSkipPrevious = () async {
+          final q = ref.read(queueStateProvider);
+          final settings = ref.read(settingsStateProvider);
+          await controller.skipPrevious(
+            queue: q.songs,
+            currentIndex: q.currentIndex,
+            playMode: q.playMode,
+            quality: settings.playbackQuality,
+          );
+        };
 
         // 内部音量始终为1.0，跟随系统音量
         return controller;
