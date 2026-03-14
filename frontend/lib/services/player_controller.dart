@@ -59,6 +59,8 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   void _onSongComplete() {
+    // 告知 audioHandler 正在切歌，防止 completed 状态关闭灵动岛/锁屏
+    audioHandler.beginSwitching();
     final queue = getQueue?.call() ?? [];
     final playMode = getPlayMode?.call() ?? PlayMode.list;
     final currentIndex = getCurrentQueueIndex?.call() ?? 0;
@@ -150,6 +152,7 @@ class PlayerController extends StateNotifier<PlayerState> {
 
       // 引擎就绪，解除 loading 锁，让 _tick() 开始同步
       _isLoading = false;
+      audioHandler.endSwitching();
       state = state.copyWith(isPlaying: true);
 
       // 后台加载歌词

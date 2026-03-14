@@ -20,8 +20,19 @@ class SolaraAudioHandler extends BaseAudioHandler with SeekHandler {
     });
   }
 
+  bool _isSwitching = false;
+
+  /// 切歌时调用，防止 completed 状态触发系统关闭灵动岛/锁屏
+  void beginSwitching() => _isSwitching = true;
+  void endSwitching() => _isSwitching = false;
+
   void _broadcastState() {
     final playing = _player.playing;
+    final rawState = _player.processingState;
+    // 切歌过渡期间，不向系统广播 completed，避免灵动岛/锁屏被关闭
+    final mappedState = (_isSwitching && rawState == ProcessingState.completed)
+        ? AudioProcessingState.loading
+        : _mapProcessingState(rawState);
     playbackState.add(playbackState.value.copyWith(
       controls: [
         MediaControl.skipToPrevious,
@@ -34,7 +45,7 @@ class SolaraAudioHandler extends BaseAudioHandler with SeekHandler {
         MediaAction.seekBackward,
       },
       androidCompactActionIndices: const [0, 1, 2],
-      processingState: _mapProcessingState(_player.processingState),
+      processingState: mappedState,
       playing: playing,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
