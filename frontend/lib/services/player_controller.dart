@@ -157,6 +157,14 @@ class PlayerController extends StateNotifier<PlayerState> {
       audioHandler.endSwitching();
       state = state.copyWith(isPlaying: true);
 
+      // 立即用已知 duration 更新锁屏/灵动岛，封面暂用上一首（避免空白）
+      audioHandler.setNowPlaying(
+        title: song.name,
+        artist: song.artist,
+        artworkUrl: state.artworkUrl,
+        duration: engine.duration,
+      );
+
       // 后台加载歌词
       try {
         final lyricRaw = await repository.fetchLyric(
