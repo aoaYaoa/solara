@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"backend/internal/models"
@@ -415,7 +416,8 @@ func (h *SolaraHandler) proxyKuwoAudio(c *gin.Context, targetURL string) {
 		return
 	}
 	extraHeaders := map[string]string{
-		"Referer": referer,
+		"Referer":    referer,
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 	}
 	h.proxyRequest(c, parsed.String(), extraHeaders)
 }
@@ -879,6 +881,14 @@ func (h *SolaraHandler) BilibiliSearch(keyword string, page, count int) ([]map[s
 
 // BilibiliPlayUrl 获取B站视频音频流URL
 func (h *SolaraHandler) BilibiliPlayUrl(bvid string) (string, error) {
+	// 检查缓存（B站音频URL有效期约2分钟，缓存90秒）
+	biliCacheMu.Lock()
+	if entry, ok := biliCache[bvid]; ok && time.Now().Before(entry.expiry) {
+		biliCacheMu.Unlock()
+		return entry.url, nil
+	}
+	biliCacheMu.Unlock()
+
 	// 1. 获取 cid
 	pageURL := fmt.Sprintf("https://api.bilibili.com/x/player/pagelist?bvid=%s", url.QueryEscape(bvid))
 	pageData, err := fetchBilibili(pageURL)
@@ -912,9 +922,15 @@ func (h *SolaraHandler) BilibiliPlayUrl(bvid string) (string, error) {
 			// 取第一个（最高码率）
 			if audioItem, ok := audioList[0].(map[string]interface{}); ok {
 				if baseUrl, ok := audioItem["baseUrl"].(string); ok && baseUrl != "" {
+					biliCacheMu.Lock()
+					biliCache[bvid] = biliCacheEntry{url: baseUrl, expiry: time.Now().Add(90 * time.Second)}
+					biliCacheMu.Unlock()
 					return baseUrl, nil
 				}
 				if baseUrl, ok := audioItem["base_url"].(string); ok && baseUrl != "" {
+					biliCacheMu.Lock()
+					biliCache[bvid] = biliCacheEntry{url: baseUrl, expiry: time.Now().Add(90 * time.Second)}
+					biliCacheMu.Unlock()
 					return baseUrl, nil
 				}
 			}
@@ -925,6 +941,9 @@ func (h *SolaraHandler) BilibiliPlayUrl(bvid string) (string, error) {
 	if durls, ok := dataMap["durl"].([]interface{}); ok && len(durls) > 0 {
 		if d, ok := durls[0].(map[string]interface{}); ok {
 			if u, ok := d["url"].(string); ok && u != "" {
+				biliCacheMu.Lock()
+				biliCache[bvid] = biliCacheEntry{url: u, expiry: time.Now().Add(90 * time.Second)}
+				biliCacheMu.Unlock()
 				return u, nil
 			}
 		}
@@ -1376,7 +1395,35 @@ func youtubeParseListItem(renderer map[string]interface{}) map[string]interface{
 	}
 }
 
+type ytCacheEntry struct {
+	url     string
+	expiry  time.Time
+}
+
+var (
+	ytCache   = map[string]ytCacheEntry{}
+	ytCacheMu sync.Mutex
+)
+
+type biliCacheEntry struct {
+	url    string
+	expiry time.Time
+}
+
+var (
+	biliCache   = map[string]biliCacheEntry{}
+	biliCacheMu sync.Mutex
+)
+
 func youtubeGetAudioUrl(videoId string) (string, error) {
+	// 检查缓存（YouTube URL 有效期约6小时，缓存5小时）
+	ytCacheMu.Lock()
+	if entry, ok := ytCache[videoId]; ok && time.Now().Before(entry.expiry) {
+		ytCacheMu.Unlock()
+		return entry.url, nil
+	}
+	ytCacheMu.Unlock()
+
 	// 用 yt-dlp + cookies + node.js 获取音频 URL
 	cookiesPath := "/app/yt_cookies.txt"
 	cmd := fmt.Sprintf(
@@ -1391,11 +1438,16 @@ func youtubeGetAudioUrl(videoId string) (string, error) {
 	if u == "" {
 		return "", fmt.Errorf("yt-dlp returned empty url")
 	}
+
+	// 写入缓存
+	ytCacheMu.Lock()
+	ytCache[videoId] = ytCacheEntry{url: u, expiry: time.Now().Add(5 * time.Hour)}
+	ytCacheMu.Unlock()
 	return u, nil
 }
 
 func execShell(cmd string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
 	if err != nil {

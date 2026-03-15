@@ -42,6 +42,59 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     }
   }
 
+  void _showSourceSheet(BuildContext context, String current, ColorScheme colorScheme,
+      ValueChanged<String> onSelected) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('选择音源',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface)),
+              ),
+            ),
+            ...AppConfig.sources.map((s) {
+              final isSelected = s == current;
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                title: Text(_sourceLabel(s),
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                    )),
+                trailing: isSelected
+                    ? Icon(Icons.check_rounded, color: colorScheme.primary)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  onSelected(s);
+                },
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _sourceLabel(String source) {
     switch (source) {
       case 'netease': return '网易';
@@ -149,33 +202,15 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
             ),
             const SizedBox(width: 10),
             // ── 音源选择 ──
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                notifier.setSource(value);
-                settingsNotifier.setSearchSource(value);
-              },
-              offset: const Offset(0, 42),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              itemBuilder: (_) => AppConfig.sources.map((s) {
-                final isSelected = s == searchState.source;
-                return PopupMenuItem(
-                  value: s,
-                  child: Row(
-                    children: [
-                      Text(
-                        _sourceLabel(s),
-                        style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                          color: isSelected ? colorScheme.primary : null,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (isSelected)
-                        Icon(Icons.check_rounded, size: 18, color: colorScheme.primary),
-                    ],
-                  ),
-                );
-              }).toList(),
+            GestureDetector(
+              onTap: () => _showSourceSheet(
+                context, searchState.source, colorScheme,
+                (value) {
+                  notifier.setSource(value);
+                  settingsNotifier.setSearchSource(value);
+                  settingsNotifier.setDiscoverSource(value);
+                },
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
@@ -185,16 +220,12 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      _sourceLabel(searchState.source),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
+                    Text(_sourceLabel(searchState.source),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
+                            color: colorScheme.onSurface)),
                     const SizedBox(width: 2),
-                    Icon(Icons.unfold_more, size: 14, color: colorScheme.onSurfaceVariant),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 16,
+                        color: colorScheme.onSurfaceVariant),
                   ],
                 ),
               ),
@@ -379,8 +410,8 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 1.0,
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.7,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                 ),
