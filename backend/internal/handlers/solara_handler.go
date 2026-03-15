@@ -1124,6 +1124,19 @@ var youtubeInnertubeContext = map[string]interface{}{
 	},
 }
 
+// iOS 客户端 context，用于获取未加密的播放 URL
+var youtubeIOSContext = map[string]interface{}{
+	"client": map[string]interface{}{
+		"clientName":    "IOS",
+		"clientVersion": "19.29.1",
+		"deviceMake":    "Apple",
+		"deviceModel":   "iPhone16,2",
+		"osName":        "iPhone",
+		"osVersion":     "17.5.1.21F90",
+		"hl":            "zh-CN",
+	},
+}
+
 func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interface{}, error) {
 	body["context"] = youtubeInnertubeContext
 	payload, err := json.Marshal(body)
@@ -1250,9 +1263,31 @@ func youtubeParseListItem(renderer map[string]interface{}) map[string]interface{
 }
 
 func youtubeGetAudioUrl(videoId string) (string, error) {
-	// 使用 /youtubei/v1/player 获取流媒体信息
-	apiURL := "https://music.youtube.com/youtubei/v1/player?prettyPrint=false"
-	data, err := fetchYouTube(apiURL, map[string]interface{}{"videoId": videoId})
+	// 使用 iOS 客户端获取未加密的音频 URL
+	apiURL := "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+	body := map[string]interface{}{
+		"videoId": videoId,
+		"context": youtubeIOSContext,
+	}
+	payload, _ := json.Marshal(body)
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(payload)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var data map[string]interface{}
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	if err := dec.Decode(&data); err != nil {
+		return "", err
+	}
 	if err != nil {
 		return "", err
 	}
