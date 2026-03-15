@@ -470,7 +470,7 @@ class _LeaderboardCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            item.coverUrl != null
+            source == 'netease' && item.coverUrl != null
                 ? Image.network(
                     proxyImageUrl(item.coverUrl!),
                     fit: BoxFit.cover,
