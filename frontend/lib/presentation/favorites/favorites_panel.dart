@@ -193,6 +193,7 @@ class _FavCoverState extends ConsumerState<_FavCover> {
       child: Image.network(
         proxyImageUrl(u),
         width: 44, height: 44, fit: BoxFit.cover,
+        cacheWidth: 88,
         errorBuilder: (_, __, ___) => placeholder,
       ),
     );

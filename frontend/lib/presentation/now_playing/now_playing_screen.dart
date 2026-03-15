@@ -576,6 +576,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ? Image.network(
                           proxyImageUrl(playerState.artworkUrl!),
                           fit: BoxFit.cover,
+                          cacheWidth: 600,
                           errorBuilder: (_, __, ___) =>
                               _defaultCover(primaryColor),
                         )

@@ -211,6 +211,7 @@ class _ArtworkThumbnail extends StatelessWidget {
                   width: 46,
                   height: 46,
                   fit: BoxFit.cover,
+                  cacheWidth: 92,
                   errorBuilder: (_, __, ___) => _placeholder(colorScheme),
                 ),
               )

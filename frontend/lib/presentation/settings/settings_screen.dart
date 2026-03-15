@@ -589,7 +589,7 @@ class _CookieSection extends ConsumerStatefulWidget {
 
 class _CookieSectionState extends ConsumerState<_CookieSection> {
   Map<String, CookieStatus> _status = {};
-  bool _loading = false;
+  String? _loadingType; // 当前正在上传的类型
 
   @override
   void initState() {
@@ -606,10 +606,11 @@ class _CookieSectionState extends ConsumerState<_CookieSection> {
   }
 
   Future<void> _upload(String type) async {
-    setState(() => _loading = true);
+    setState(() => _loadingType = type);
     try {
       final svc = ref.read(cookieServiceProvider);
       final result = await svc.uploadCookie(type);
+      if (result == null) return; // 用户取消选择
       if (mounted) {
         setState(() => _status = {..._status, type: result});
         ScaffoldMessenger.of(context).showSnackBar(
@@ -618,12 +619,13 @@ class _CookieSectionState extends ConsumerState<_CookieSection> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('上传失败: $e'), behavior: SnackBarBehavior.floating),
+          SnackBar(content: Text('上传失败: $msg'), behavior: SnackBarBehavior.floating),
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _loadingType = null);
     }
   }
 
@@ -647,10 +649,10 @@ class _CookieSectionState extends ConsumerState<_CookieSection> {
         title: 'YouTube Cookie',
         value: yt?.label ?? '加载中...',
         valueColor: _statusColor(yt, cs),
-        trailing: _loading
+        trailing: _loadingType == 'youtube'
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
             : null,
-        onTap: _loading ? null : () => _upload('youtube'),
+        onTap: _loadingType != null ? null : () => _upload('youtube'),
       ),
       _Divider(),
       _SettingsTile(
@@ -659,10 +661,10 @@ class _CookieSectionState extends ConsumerState<_CookieSection> {
         title: 'B站 Cookie',
         value: bili?.label ?? '加载中...',
         valueColor: _statusColor(bili, cs),
-        trailing: _loading
+        trailing: _loadingType == 'bilibili'
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
             : null,
-        onTap: _loading ? null : () => _upload('bilibili'),
+        onTap: _loadingType != null ? null : () => _upload('bilibili'),
       ),
     ]);
   }

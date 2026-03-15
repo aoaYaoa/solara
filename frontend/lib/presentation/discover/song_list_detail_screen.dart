@@ -137,6 +137,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                         ? Image.network(
                           proxyImageUrl(widget.item.coverUrl!),
                           fit: BoxFit.cover,
+                          cacheWidth: 400,
                           errorBuilder:
                               (_, __, ___) => Container(
                                 color: Theme.of(context).colorScheme.surfaceContainerHighest,

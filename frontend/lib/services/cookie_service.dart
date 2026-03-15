@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'app_config.dart';
 
 class CookieStatus {
@@ -43,18 +43,15 @@ class CookieService {
     };
   }
 
-  Future<CookieStatus> uploadCookie(String type) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['txt'],
-      dialogTitle: '选择 ${type == 'youtube' ? 'YouTube' : 'B站'} Cookie 文件',
-    );
-    if (result == null || result.files.isEmpty) throw Exception('未选择文件');
-    final path = result.files.single.path;
-    if (path == null) throw Exception('无法读取文件路径');
+  /// 返回 null 表示用户取消了选择
+  Future<CookieStatus?> uploadCookie(String type) async {
+    const txtGroup = XTypeGroup(label: 'Text', extensions: ['txt']);
+    final file = await openFile(acceptedTypeGroups: [txtGroup]);
+    if (file == null) return null;
 
+    final bytes = await file.readAsBytes();
     final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(path, filename: 'cookies.txt'),
+      'file': MultipartFile.fromBytes(bytes, filename: 'cookies.txt'),
     });
     final resp = await _dio.post(
       '${AppConfig.baseUrl}/api/cookies/upload?type=$type',

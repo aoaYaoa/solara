@@ -30,6 +30,7 @@ class MvPlayerScreen extends ConsumerStatefulWidget {
 class _MvPlayerScreenState extends ConsumerState<MvPlayerScreen>
     with SingleTickerProviderStateMixin {
   VideoPlayerController? _ctrl;
+  VoidCallback? _ctrlListener;
   bool _loading = true;
   String? _error;
   bool _showControls = true;
@@ -79,6 +80,9 @@ class _MvPlayerScreenState extends ConsumerState<MvPlayerScreen>
   void dispose() {
     _hideTimer?.cancel();
     _fadeCtrl.dispose();
+    if (_ctrlListener != null) {
+      _ctrl?.removeListener(_ctrlListener!);
+    }
     _ctrl?.pause();
     _ctrl?.dispose();
     SystemChrome.setPreferredOrientations([
@@ -108,9 +112,10 @@ class _MvPlayerScreenState extends ConsumerState<MvPlayerScreen>
       }
       final ctrl = VideoPlayerController.networkUrl(Uri.parse(url));
       await ctrl.initialize();
-      ctrl.addListener(() {
+      _ctrlListener = () {
         if (mounted) setState(() {});
-      });
+      };
+      ctrl.addListener(_ctrlListener!);
       if (mounted) {
         setState(() {
           _ctrl = ctrl;

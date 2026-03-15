@@ -27,6 +27,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   final PersistentStateService persistence;
   final void Function(Song)? onSongPlayed;
   Timer? _timer;
+  Timer? _durationTimer;
   StreamSubscription<void>? _completeSub;
   List<Song> Function()? getQueue;
   PlayMode Function()? getPlayMode;
@@ -282,9 +283,11 @@ class PlayerController extends StateNotifier<PlayerState> {
   }
 
   void _updateDurationWhenReady(Song song, String? artworkUrl) {
+    // 取消上一首歌残留的轮询，防止快速切歌时 Timer 泄漏
+    _durationTimer?.cancel();
     // 轮询等待 duration 可用，最多等 5 秒
     var attempts = 0;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    _durationTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
       final dur = engine.duration;
       attempts++;
       if (dur != null || attempts >= 25) {
@@ -445,6 +448,7 @@ class PlayerController extends StateNotifier<PlayerState> {
   @override
   void dispose() {
     _timer?.cancel();
+    _durationTimer?.cancel();
     _completeSub?.cancel();
     super.dispose();
   }

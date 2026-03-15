@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import '../domain/models/song.dart';
 
 class ImportExportService {
@@ -8,26 +8,20 @@ class ImportExportService {
     required String fileName,
     required List<Song> songs,
   }) async {
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Export',
-      fileName: fileName,
-    );
-    if (path == null) return null;
+    final location = await getSaveLocation(suggestedName: fileName);
+    if (location == null) return null;
 
     final json = jsonEncode(songs.map((s) => s.toJson()).toList());
-    final file = File(path);
+    final file = File(location.path);
     await file.writeAsString(json);
-    return path;
+    return location.path;
   }
 
   Future<List<Song>> importSongs() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (result == null || result.files.isEmpty) return [];
+    const jsonGroup = XTypeGroup(label: 'JSON', extensions: ['json']);
+    final file = await openFile(acceptedTypeGroups: [jsonGroup]);
+    if (file == null) return [];
 
-    final file = File(result.files.first.path!);
     final raw = await file.readAsString();
     final decoded = jsonDecode(raw);
     if (decoded is! List) return [];

@@ -633,6 +633,7 @@ class _SongCoverState extends State<_SongCover> {
           width: s,
           height: s,
           fit: BoxFit.cover,
+          cacheWidth: (s * 2).toInt(),
           errorBuilder: (_, __, ___) => placeholder,
         ),
       );
@@ -651,6 +652,7 @@ class _SongCoverState extends State<_SongCover> {
               width: s,
               height: s,
               fit: BoxFit.cover,
+              cacheWidth: (s * 2).toInt(),
               errorBuilder: (_, __, ___) => placeholder,
             ),
           );
