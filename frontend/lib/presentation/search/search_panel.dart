@@ -470,15 +470,7 @@ class _LeaderboardCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            item.coverUrl != null
-                ? Image.network(
-                    proxyImageUrl(item.coverUrl!),
-                    fit: BoxFit.cover,
-                    cacheWidth: 200,
-                    gaplessPlayback: true,
-                    errorBuilder: (_, __, ___) => _placeholder(colorScheme),
-                  )
-                : _placeholder(colorScheme),
+            _placeholder(colorScheme),
             Positioned(
               left: 0,
               right: 0,
