@@ -1556,8 +1556,9 @@ func youtubeGetAudioUrl(videoId string) (string, error) {
 
 	// 用 yt-dlp + cookies + node.js 获取音频 URL
 	cookiesPath := "/app/yt_cookies.txt"
+	// 优先选 m4a/aac（macOS AVFoundation 支持），fallback 到 bestaudio
 	cmd := fmt.Sprintf(
-		"yt-dlp --js-runtimes node --cookies %s -f bestaudio --get-url 'https://www.youtube.com/watch?v=%s' 2>/dev/null",
+		"yt-dlp --js-runtimes node --cookies %s -f 'bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio' --get-url 'https://www.youtube.com/watch?v=%s' 2>/dev/null",
 		cookiesPath, videoId,
 	)
 	out, err := execShell(cmd)
