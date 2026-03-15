@@ -936,10 +936,10 @@ var bilibiliCategories = []struct{ id, name, keyword string }{
 	{"bili_pop", "流行", "流行音乐"},
 	{"bili_electronic", "电子", "电子音乐"},
 	{"bili_rock", "摇滚", "摇滚乐"},
-	{"bili_folk", "民谣", "民谣"},
+	{"bili_folk", "民谣", "民谣歌曲推荐"},
 	{"bili_ancient", "古风", "古风音乐"},
 	{"bili_cover", "翻唱", "翻唱"},
-	{"bili_jazz", "爵士", "爵士乐"},
+	{"bili_jazz", "爵士", "jazz music"},
 	{"bili_classical", "古典", "古典音乐"},
 	{"bili_ranking", "音乐区周榜", ""},
 }
