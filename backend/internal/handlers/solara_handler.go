@@ -945,12 +945,32 @@ var bilibiliCategories = []struct{ id, name, keyword string }{
 }
 
 func bilibiliLeaderboardList() ([]map[string]interface{}, error) {
+	// 从周榜API取第一个视频封面作为周榜分类封面
+	rankingCover := ""
+	data, err := fetchBilibili("https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all")
+	if err == nil {
+		if dm, ok := data["data"].(map[string]interface{}); ok {
+			if list, ok := dm["list"].([]interface{}); ok && len(list) > 0 {
+				if first, ok := list[0].(map[string]interface{}); ok {
+					pic, _ := first["pic"].(string)
+					if pic != "" && !strings.HasPrefix(pic, "http") {
+						pic = "https:" + pic
+					}
+					rankingCover = pic
+				}
+			}
+		}
+	}
 	result := make([]map[string]interface{}, 0, len(bilibiliCategories))
 	for _, cat := range bilibiliCategories {
+		coverUrl := ""
+		if cat.id == "bili_ranking" {
+			coverUrl = rankingCover
+		}
 		result = append(result, map[string]interface{}{
 			"id":              cat.id,
 			"name":            cat.name,
-			"coverUrl":        "",
+			"coverUrl":        coverUrl,
 			"updateFrequency": "",
 			"source":          "bilibili",
 		})
@@ -1084,13 +1104,54 @@ func jamendoSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 	return jamendoParseTracks(apiURL)
 }
 
+// jamendoFirstPic 获取分类第一首歌的封面
+func jamendoFirstPic(tag string) string {
+	cid := jamendoClientID()
+	if cid == "" {
+		return ""
+	}
+	apiURL := fmt.Sprintf(
+		"https://api.jamendo.com/v3.0/tracks?client_id=%s&tags=%s&order=popularity_total&format=json&limit=1",
+		cid, url.QueryEscape(tag),
+	)
+	data, err := fetchJamendo(apiURL)
+	if err != nil {
+		return ""
+	}
+	results, _ := data["results"].([]interface{})
+	if len(results) == 0 {
+		return ""
+	}
+	m, _ := results[0].(map[string]interface{})
+	if m == nil {
+		return ""
+	}
+	image, _ := m["image"].(string)
+	return image
+}
+
 func jamendoLeaderboardList() ([]map[string]interface{}, error) {
+	type coverResult struct {
+		index int
+		url   string
+	}
+	covers := make([]string, len(jamendoCategories))
+	ch := make(chan coverResult, len(jamendoCategories))
+	for i, cat := range jamendoCategories {
+		go func(idx int, tag string) {
+			ch <- coverResult{idx, jamendoFirstPic(tag)}
+		}(i, cat.tag)
+	}
+	for range jamendoCategories {
+		r := <-ch
+		covers[r.index] = r.url
+	}
 	result := make([]map[string]interface{}, 0, len(jamendoCategories))
-	for _, cat := range jamendoCategories {
+	for i, cat := range jamendoCategories {
 		result = append(result, map[string]interface{}{
 			"id":              cat.id,
 			"name":            cat.name,
-			"coverUrl":        "",
+			"coverUrl":        covers[i],
 			"updateFrequency": "",
 			"source":          "jamendo",
 		})
@@ -1354,13 +1415,38 @@ var youtubeCategories = []struct{ id, name, keyword string }{
 	{"yt_rnb", "R&B", "rnb music"},
 }
 
+// youtubeFirstPic 搜索关键词返回第一个结果的封面
+func youtubeFirstPic(keyword string) string {
+	results, err := youtubeSearch(keyword, 1)
+	if err != nil || len(results) == 0 {
+		return ""
+	}
+	pic, _ := results[0]["pic_url"].(string)
+	return pic
+}
+
 func youtubeLeaderboardList() ([]map[string]interface{}, error) {
+	type coverResult struct {
+		index int
+		url   string
+	}
+	covers := make([]string, len(youtubeCategories))
+	ch := make(chan coverResult, len(youtubeCategories))
+	for i, cat := range youtubeCategories {
+		go func(idx int, keyword string) {
+			ch <- coverResult{idx, youtubeFirstPic(keyword)}
+		}(i, cat.keyword)
+	}
+	for range youtubeCategories {
+		r := <-ch
+		covers[r.index] = r.url
+	}
 	result := make([]map[string]interface{}, 0, len(youtubeCategories))
-	for _, cat := range youtubeCategories {
+	for i, cat := range youtubeCategories {
 		result = append(result, map[string]interface{}{
 			"id":              cat.id,
 			"name":            cat.name,
-			"coverUrl":        "",
+			"coverUrl":        covers[i],
 			"updateFrequency": "",
 			"source":          "youtube",
 		})
