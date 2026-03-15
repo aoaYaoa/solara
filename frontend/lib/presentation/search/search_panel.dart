@@ -32,9 +32,9 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final source = ref.read(settingsStateProvider).searchSource;
-      ref.read(searchStateProvider.notifier).setSource(source);
-      ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
+      final s = ref.read(settingsStateProvider);
+      ref.read(searchStateProvider.notifier).setSource(s.searchSource);
+      ref.read(discoverStateProvider.notifier).ensureLoaded(source: s.discoverSource);
     });
   }
 
@@ -123,7 +123,10 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
   Widget build(BuildContext context) {
     ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
       if (prev?.searchSource != next.searchSource) {
-        ref.read(discoverStateProvider.notifier).loadAll(source: next.searchSource);
+        ref.read(searchStateProvider.notifier).setSource(next.searchSource);
+      }
+      if (prev?.discoverSource != next.discoverSource) {
+        ref.read(discoverStateProvider.notifier).loadAll(source: next.discoverSource);
       }
     });
 
@@ -427,7 +430,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                   final item = discoverState.leaderboards[index];
                   return _LeaderboardCard(
                     item: item,
-                    source: ref.read(settingsStateProvider).searchSource,
+                    source: ref.read(settingsStateProvider).discoverSource,
                   );
                 },
               ),
