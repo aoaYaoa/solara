@@ -60,7 +60,10 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
   /// 如果当前 source 数据已加载则跳过，避免每次切换 tab 重新请求
   Future<void> ensureLoaded({required String source}) async {
-    if (state.loadedSource == source || state.loading) return;
+    // 已加载完成且是同一 source 则跳过
+    if (state.loadedSource == source && !state.loading && state.leaderboards.isNotEmpty) return;
+    // 正在加载同一 source 则等待，不重复发请求
+    if (state.loading && state.loadedSource == source) return;
     await loadAll(source: source);
   }
 
