@@ -30,8 +30,20 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final source = ref.read(settingsStateProvider).searchSource;
-      ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
+      ref.read(discoverStateProvider.notifier).loadAll(source: source);
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final source = ref.read(settingsStateProvider).searchSource;
+    final loaded = ref.read(discoverStateProvider).loadedSource;
+    if (loaded != source) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(discoverStateProvider.notifier).loadAll(source: source);
+      });
+    }
   }
 
   void _onScroll() {
@@ -64,6 +76,12 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
+      if (prev?.searchSource != next.searchSource) {
+        ref.read(discoverStateProvider.notifier).loadAll(source: next.searchSource);
+      }
+    });
+
     final searchState = ref.watch(searchStateProvider);
     final notifier = ref.read(searchStateProvider.notifier);
     final player = ref.read(playerControllerProvider.notifier);
@@ -354,7 +372,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
           ),
 
           // ── 排行榜 ──────────────────────────────────
-          _SectionTitle(title: '排行榜', icon: Icons.bar_chart_rounded),
+          _SectionTitle(title: '音乐馆', icon: Icons.bar_chart_rounded),
           if (discoverState.loading)
             const SizedBox(
               height: 140,
