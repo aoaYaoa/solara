@@ -41,3 +41,5 @@ frontend/android/app/release
 .env
 *.env
 credentials.json
+backend/solara_backend_linux
+backend/main_linux
