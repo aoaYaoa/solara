@@ -1300,6 +1300,27 @@ var youtubeIOSContext = map[string]interface{}{
 	},
 }
 
+// loadYouTubeCookie 从 Netscape cookie 文件读取 YouTube Cookie 字符串
+func loadYouTubeCookie() string {
+	data, err := os.ReadFile(ytCookiePath)
+	if err != nil {
+		return ""
+	}
+	var parts []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) < 7 {
+			continue
+		}
+		parts = append(parts, fields[5]+"="+fields[6])
+	}
+	return strings.Join(parts, "; ")
+}
+
 func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interface{}, error) {
 	body["context"] = youtubeInnertubeContext
 	payload, err := json.Marshal(body)
@@ -1315,6 +1336,9 @@ func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interf
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	req.Header.Set("Origin", "https://music.youtube.com")
 	req.Header.Set("Referer", "https://music.youtube.com/")
+	if cookie := loadYouTubeCookie(); cookie != "" {
+		req.Header.Set("Cookie", cookie)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
