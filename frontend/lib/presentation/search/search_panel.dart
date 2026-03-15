@@ -511,14 +511,27 @@ class _LeaderboardCard extends StatelessWidget {
   }
 
   Widget _placeholder(ColorScheme colorScheme) {
+    // 根据名字生成固定颜色，让每张卡片有不同渐变
+    final hash = item.name.codeUnits.fold(0, (a, b) => a + b);
+    final colors = [
+      [const Color(0xFF6C63FF), const Color(0xFF3B3A8F)],
+      [const Color(0xFFFF6584), const Color(0xFF8F1A35)],
+      [const Color(0xFF43C6AC), const Color(0xFF1A6B58)],
+      [const Color(0xFFFFB347), const Color(0xFF8F5B00)],
+      [const Color(0xFF667EEA), const Color(0xFF2D3A8F)],
+      [const Color(0xFFF857A6), const Color(0xFF8F1A56)],
+    ];
+    final pair = colors[hash % colors.length];
     return Container(
       width: double.infinity,
-      color: colorScheme.surfaceContainerHighest,
-      child: Icon(
-        Icons.bar_chart,
-        size: 40,
-        color: colorScheme.onSurfaceVariant,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: pair,
+        ),
       ),
+      child: const Icon(Icons.music_note_rounded, size: 36, color: Colors.white54),
     );
   }
 }
