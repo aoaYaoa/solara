@@ -194,6 +194,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               toolbarHeight: 56,
               backgroundColor: colorScheme.surface,
               surfaceTintColor: Colors.transparent,
+              centerTitle: false,
               title: const Text('发现', style: TextStyle(fontWeight: FontWeight.w700)),
               actions: [
                 Padding(

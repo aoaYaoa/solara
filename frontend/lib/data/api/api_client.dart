@@ -14,7 +14,7 @@ class ApiClient {
             BaseOptions(
               baseUrl: baseUrl,
               connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 90),
               followRedirects: false,
               validateStatus: (status) => status != null && status < 500,
             ),
