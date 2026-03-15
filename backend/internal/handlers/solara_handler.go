@@ -1381,9 +1381,11 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 	if _, err := os.Stat(cookiesPath); err == nil {
 		cookiesArg = fmt.Sprintf("--cookies %s ", cookiesPath)
 	}
+	// 多搜一些，过滤掉合辑后确保有足够数量
+	fetchLimit := limit * 3
 	cmd := fmt.Sprintf(
 		"yt-dlp --dump-json --flat-playlist --no-warnings %s'ytsearch%d:%s official music video' 2>/dev/null",
-		cookiesArg, limit, strings.ReplaceAll(keyword, "'", ""),
+		cookiesArg, fetchLimit, strings.ReplaceAll(keyword, "'", ""),
 	)
 	out, err := execShell(cmd)
 	if err != nil || strings.TrimSpace(out) == "" {
@@ -1391,6 +1393,9 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 	}
 	result := make([]map[string]interface{}, 0, limit)
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if len(result) >= limit {
+			break
+		}
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -1401,6 +1406,10 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 		}
 		videoId, _ := m["id"].(string)
 		if videoId == "" {
+			continue
+		}
+		// 过滤时长超过15分钟的合辑/播放列表视频
+		if dur, ok := m["duration"].(float64); ok && dur > 900 {
 			continue
 		}
 		title, _ := m["title"].(string)
