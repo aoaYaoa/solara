@@ -914,6 +914,7 @@ func (h *SolaraHandler) BilibiliSearch(keyword string, page, count int) ([]map[s
 			"pic_id":   "",
 			"pic_url":  pic,
 			"url_id":   bvid,
+			"mv_id":    bvid,
 			"lyric_id": "",
 			"source":   "bilibili",
 		})
@@ -1116,6 +1117,7 @@ func bilibiliLeaderboardDetailByID(id string, limit int) ([]map[string]interface
 				"pic_id":   "",
 				"pic_url":  pic,
 				"url_id":   bvid,
+				"mv_id":    bvid,
 				"lyric_id": "",
 				"source":   "bilibili",
 			})
@@ -1434,6 +1436,7 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 			"pic_id":   "",
 			"pic_url":  picUrl,
 			"url_id":   videoId,
+			"mv_id":    videoId,
 			"lyric_id": "",
 			"source":   "youtube",
 		})
