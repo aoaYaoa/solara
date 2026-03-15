@@ -667,15 +667,42 @@ func (h *SolaraHandler) DiscoverSongList(c *gin.Context) {
 	source := c.DefaultQuery("source", "netease")
 	switch source {
 	case "bilibili":
-		result, err := bilibiliSongList()
+		result, err := bilibiliLeaderboardList()
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
 		}
+		for _, item := range result {
+			if _, ok := item["author"]; !ok {
+				item["author"] = "Bilibili"
+			}
+		}
 		c.JSON(http.StatusOK, result)
-	case "youtube", "jamendo":
-		// YouTube/Jamendo 无歌单概念，返回空
-		c.JSON(http.StatusOK, []interface{}{})
+	case "youtube":
+		result, err := youtubeLeaderboardList()
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		// 补充 author 字段以兼容 SongListItem
+		for _, item := range result {
+			if _, ok := item["author"]; !ok {
+				item["author"] = "YouTube"
+			}
+		}
+		c.JSON(http.StatusOK, result)
+	case "jamendo":
+		result, err := jamendoLeaderboardList()
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		for _, item := range result {
+			if _, ok := item["author"]; !ok {
+				item["author"] = "Jamendo"
+			}
+		}
+		c.JSON(http.StatusOK, result)
 	default: // netease
 		limitStr := c.DefaultQuery("limit", "30")
 		limit := 30
@@ -732,21 +759,34 @@ func (h *SolaraHandler) DiscoverSongListDetail(c *gin.Context) {
 	limit := 30
 	fmt.Sscanf(limitStr, "%d", &limit)
 
+	id := c.Param("id")
+
 	switch source {
 	case "bilibili":
-		result, err := bilibiliLeaderboardDetail(limit)
+		result, err := bilibiliLeaderboardDetailByID(id, limit)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, result)
 		return
-	case "youtube", "jamendo":
-		c.JSON(http.StatusOK, []interface{}{})
+	case "youtube":
+		result, err := youtubeLeaderboardDetailByID(id, limit)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+		return
+	case "jamendo":
+		result, err := jamendoLeaderboardDetailByID(id, limit)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 		return
 	}
-
-	id := c.Param("id")
 
 	apiURL := fmt.Sprintf("https://music.163.com/api/v3/playlist/detail?id=%s&n=%d", url.QueryEscape(id), limit)
 	data, err := fetchNetease(apiURL)
