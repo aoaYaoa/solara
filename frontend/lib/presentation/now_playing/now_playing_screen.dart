@@ -190,7 +190,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -239,6 +240,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               ],
             ],
           ),
+        ),
         ),
       ),
     );

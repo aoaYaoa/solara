@@ -44,10 +44,7 @@ class _MvPlayerScreenState extends ConsumerState<MvPlayerScreen> {
   void dispose() {
     _controller?.dispose();
     // Restore orientation
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
