@@ -10,6 +10,8 @@ import '../../services/image_headers.dart' show proxyImageUrl;
 import '../../data/providers.dart';
 import '../../domain/state/favorites_state.dart';
 import '../../domain/state/queue_state.dart';
+import '../../domain/state/history_state.dart';
+import '../../domain/models/song.dart';
 import '../discover/leaderboard_detail_screen.dart';
 
 class SearchPanel extends ConsumerStatefulWidget {
@@ -31,6 +33,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final source = ref.read(settingsStateProvider).searchSource;
+      ref.read(searchStateProvider.notifier).setSource(source);
       ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
     });
   }
@@ -233,96 +236,113 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
           ],
         ),
       ),
-      body:
-          searchState.results.isEmpty && searchState.error == null
-              ? _buildHomeContent(context, colorScheme, notifier)
-              : Column(
-                children: [
-                  if (searchState.error != null)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        searchState.error!,
-                        style: TextStyle(color: colorScheme.error),
-                      ),
+      body: Stack(
+        children: [
+          _buildHomeContent(context, colorScheme, notifier),
+          if (searchState.results.isNotEmpty || searchState.error != null || searchState.loading)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  notifier.clearResults();
+                  _focusNode.unfocus();
+                },
+              ),
+            ),
+          if (searchState.results.isNotEmpty || searchState.error != null || searchState.loading)
+            Positioned(
+              top: 0,
+              left: 12,
+              right: 12,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(16),
+                color: colorScheme.surface,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.6,
                     ),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      itemCount: searchState.results.length + (searchState.hasMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index >= searchState.results.length) {
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                          );
-                        }
-                        final song = searchState.results[index];
-                        final isFavorite = favorites.isFavorite(song);
-                        final isPlaying =
-                            playerState.isPlaying &&
-                            playerState.currentSong?.id == song.id;
-                        return ListTile(
-                          onTap: () {
-                            queue.replaceQueue(searchState.results, song);
-                            player.playSong(song, quality: settings.playbackQuality);
-                          },
-                          title: Text(
-                            song.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                isPlaying
-                                    ? TextStyle(
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.w600,
-                                    )
-                                    : null,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (searchState.error != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Text(searchState.error!,
+                                style: TextStyle(color: colorScheme.error, fontSize: 13)),
                           ),
-                          subtitle: Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          leading: _SongCover(picId: song.picId, source: song.source, picUrl: song.picUrl),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                                  color: isFavorite ? Colors.redAccent : null,
-                                ),
-                                onPressed: () => favorites.toggleFavorite(song),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  isPlaying ? Icons.pause : Icons.play_arrow,
-                                  color: isPlaying ? colorScheme.primary : null,
-                                ),
-                                onPressed: () {
-                                  if (isPlaying) {
-                                    player.toggle();
-                                  } else {
+                        if (searchState.loading && searchState.results.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else
+                          Flexible(
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              shrinkWrap: true,
+                              itemCount: searchState.results.length + (searchState.hasMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index >= searchState.results.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(child: SizedBox(width: 24, height: 24,
+                                        child: CircularProgressIndicator(strokeWidth: 2))),
+                                  );
+                                }
+                                final song = searchState.results[index];
+                                final isFavorite = favorites.isFavorite(song);
+                                final isPlaying = playerState.isPlaying &&
+                                    playerState.currentSong?.id == song.id;
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                                  onTap: () {
                                     queue.replaceQueue(searchState.results, song);
                                     player.playSong(song, quality: settings.playbackQuality);
-                                  }
-                                },
-                              ),
-                            ],
+                                  },
+                                  leading: _SongCover(picId: song.picId, source: song.source, picUrl: song.picUrl),
+                                  title: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      style: isPlaying ? TextStyle(color: colorScheme.primary,
+                                          fontWeight: FontWeight.w600) : null),
+                                  subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border,
+                                            size: 20, color: isFavorite ? Colors.redAccent : null),
+                                        onPressed: () => favorites.toggleFavorite(song),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      IconButton(
+                                        icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
+                                            size: 20, color: isPlaying ? colorScheme.primary : null),
+                                        onPressed: () {
+                                          if (isPlaying) {
+                                            player.toggle();
+                                          } else {
+                                            queue.replaceQueue(searchState.results, song);
+                                            player.playSong(song, quality: settings.playbackQuality);
+                                          }
+                                        },
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        );
-                      },
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -372,24 +392,11 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
               ),
             ),
           ],
-          // ── 猜你喜欢（快捷搜索） ──────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children:
-                  AppConfig.genres.take(8).map((genre) {
-                    return ActionChip(
-                      label: Text(genre, style: const TextStyle(fontSize: 13)),
-                      onPressed: () {
-                        _controller.text = genre;
-                        notifier.search(genre);
-                      },
-                    );
-                  }).toList(),
-            ),
-          ),
+          // ── 最近播放 ──────────────────────────────────
+          _RecentlyPlayed(onTap: (song) {
+            ref.read(playerControllerProvider.notifier).playSong(
+              song, quality: ref.read(settingsStateProvider).playbackQuality);
+          }),
 
           // ── 排行榜 ──────────────────────────────────
           _SectionTitle(title: '音乐馆', icon: Icons.bar_chart_rounded),
@@ -521,8 +528,9 @@ class _SongCover extends StatefulWidget {
   final String picId;
   final String source;
   final String? picUrl;
+  final double size;
 
-  const _SongCover({required this.picId, required this.source, this.picUrl});
+  const _SongCover({required this.picId, required this.source, this.picUrl, this.size = 44});
 
   @override
   State<_SongCover> createState() => _SongCoverState();
@@ -531,10 +539,13 @@ class _SongCover extends StatefulWidget {
 class _SongCoverState extends State<_SongCover> {
   static final Map<String, String> _cache = {};
   Future<String?>? _future;
+  bool _initialized = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
     if (widget.picUrl != null) return;
     final key = '${widget.source}:${widget.picId}';
     if (_cache.containsKey(key)) return;
@@ -553,14 +564,15 @@ class _SongCoverState extends State<_SongCover> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final s = widget.size;
     final placeholder = Container(
-      width: 44,
-      height: 44,
+      width: s,
+      height: s,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Icon(Icons.music_note, size: 22, color: colorScheme.onSurfaceVariant),
+      child: Icon(Icons.music_note, size: s * 0.5, color: colorScheme.onSurfaceVariant),
     );
 
     String? resolvedUrl = widget.picUrl;
@@ -574,8 +586,8 @@ class _SongCoverState extends State<_SongCover> {
         borderRadius: BorderRadius.circular(6),
         child: Image.network(
           proxyImageUrl(resolvedUrl),
-          width: 44,
-          height: 44,
+          width: s,
+          height: s,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => placeholder,
         ),
@@ -592,8 +604,8 @@ class _SongCoverState extends State<_SongCover> {
             borderRadius: BorderRadius.circular(6),
             child: Image.network(
               proxyImageUrl(snap.data!),
-              width: 44,
-              height: 44,
+              width: s,
+              height: s,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => placeholder,
             ),
@@ -635,6 +647,101 @@ class _SectionTitle extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RecentlyPlayed extends ConsumerWidget {
+  final void Function(Song song) onTap;
+  const _RecentlyPlayed({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(historyStateProvider).entries;
+    if (history.isEmpty) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    final playerState = ref.watch(playerControllerProvider);
+    final currentId = playerState.currentSong?.id;
+    final currentSource = playerState.currentSong?.source;
+    final isPlaying = playerState.isPlaying;
+    // 去重，保留最近播放的唯一歌曲，最多6首
+    final seen = <String>{};
+    final songs = <Song>[];
+    for (final e in history) {
+      final key = '${e.song.source}:${e.song.id}';
+      if (seen.add(key)) songs.add(e.song);
+      if (songs.length >= 6) break;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text('最近播放',
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = (constraints.maxWidth - 10) / 2;
+              const itemHeight = 48.0;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: songs.map((song) {
+                  final isCurrent = song.id == currentId && song.source == currentSource;
+                  return GestureDetector(
+                    onTap: () => onTap(song),
+                    child: Container(
+                      width: itemWidth,
+                      height: itemHeight,
+                      decoration: BoxDecoration(
+                        color: isCurrent && isPlaying
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                            child: _SongCover(
+                                picId: song.picId, source: song.source, picUrl: song.picUrl,
+                                size: itemHeight),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(song.name,
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: isCurrent && isPlaying ? colorScheme.primary : null,
+                                )),
+                          ),
+                          if (isCurrent && isPlaying)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Icon(
+                                Icons.volume_up_rounded,
+                                size: 16,
+                                color: colorScheme.primary,
+                              ),
+                            )
+                          else
+                            const SizedBox(width: 8),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
