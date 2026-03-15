@@ -27,11 +27,17 @@ void main() async {
 
   audioHandler = await AudioService.init(
     builder: () => SolaraAudioHandler(sharedPlayer),
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'com.uonoe.solara.audio',
       androidNotificationChannelName: 'Solara',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
+      // macOS 媒体控制支持
+      preloadArtwork: true,
+      artDownscaleWidth: 512,
+      artDownscaleHeight: 512,
+      fastForwardInterval: const Duration(seconds: 10),
+      rewindInterval: const Duration(seconds: 10),
     ),
   );
 

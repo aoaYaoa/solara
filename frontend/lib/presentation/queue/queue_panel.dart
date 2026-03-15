@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/queue_state.dart';
 import '../../domain/state/settings_state.dart';
 import '../../services/player_controller.dart';
+import '../widgets/playing_indicator.dart';
 
 class QueuePanel extends ConsumerStatefulWidget {
   const QueuePanel({super.key});
@@ -57,7 +58,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
     if (!_didInitialScroll) {
       _didInitialScroll = true;
       final currentIndex = queueState.songs.indexWhere(
-        (s) => s.id == playerState.currentSong?.id,
+        (s) => s.id == playerState.currentSong?.id &&
+            s.source == playerState.currentSong?.source,
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToCurrentSong(currentIndex, queueState.songs.length);
@@ -69,7 +71,8 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
       itemCount: queueState.songs.length,
       itemBuilder: (context, index) {
         final song = queueState.songs[index];
-        final isCurrent = playerState.currentSong?.id == song.id;
+        final isCurrent = playerState.currentSong?.id == song.id &&
+            playerState.currentSong?.source == song.source;
         final isPlaying = isCurrent && playerState.isPlaying;
 
         return Container(
@@ -87,7 +90,7 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
               width: 32,
               height: 32,
               child: isCurrent
-                  ? _PlayingIndicator(isPlaying: isPlaying, color: colorScheme.primary)
+                  ? PlayingIndicator(isPlaying: isPlaying, color: colorScheme.primary)
                   : Center(
                       child: Text(
                         '${index + 1}',
@@ -124,103 +127,6 @@ class _QueuePanelState extends ConsumerState<QueuePanel> {
               visualDensity: VisualDensity.compact,
             ),
           ),
-        );
-      },
-    );
-  }
-}
-
-/// Animated equalizer bars indicating playback status.
-class _PlayingIndicator extends StatefulWidget {
-  final bool isPlaying;
-  final Color color;
-
-  const _PlayingIndicator({required this.isPlaying, required this.color});
-
-  @override
-  State<_PlayingIndicator> createState() => _PlayingIndicatorState();
-}
-
-class _PlayingIndicatorState extends State<_PlayingIndicator>
-    with TickerProviderStateMixin {
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _animations;
-
-  static const _barCount = 4;
-  // Each bar has a different duration for a natural look
-  static const _durations = [450, 550, 400, 500];
-  static const _minHeight = 0.15;
-  static const _maxHeights = [0.9, 0.7, 1.0, 0.65];
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(_barCount, (i) {
-      return AnimationController(
-        vsync: this,
-        duration: Duration(milliseconds: _durations[i]),
-      );
-    });
-    _animations = List.generate(_barCount, (i) {
-      return Tween<double>(begin: _minHeight, end: _maxHeights[i]).animate(
-        CurvedAnimation(parent: _controllers[i], curve: Curves.easeInOut),
-      );
-    });
-    if (widget.isPlaying) _startAnimations();
-  }
-
-  @override
-  void didUpdateWidget(covariant _PlayingIndicator oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying && !oldWidget.isPlaying) {
-      _startAnimations();
-    } else if (!widget.isPlaying && oldWidget.isPlaying) {
-      _stopAnimations();
-    }
-  }
-
-  void _startAnimations() {
-    for (final c in _controllers) {
-      c.repeat(reverse: true);
-    }
-  }
-
-  void _stopAnimations() {
-    for (final c in _controllers) {
-      c.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge(_controllers),
-      builder: (context, _) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: List.generate(_barCount, (i) {
-            final height = widget.isPlaying
-                ? _animations[i].value
-                : (_minHeight + 0.15 * (i % 2 == 0 ? 1 : 0.5));
-            return Container(
-              width: 3,
-              height: 18 * height,
-              margin: const EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                color: widget.color,
-                borderRadius: BorderRadius.circular(1.5),
-              ),
-            );
-          }),
         );
       },
     );

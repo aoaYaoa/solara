@@ -31,12 +31,23 @@ class _LeaderboardDetailScreenState
   bool _hasMore = true;
   int _page = 1;
   String? _error;
+  bool _didInitialScroll = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     _load();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
   }
 
   @override
@@ -140,6 +151,18 @@ class _LeaderboardDetailScreenState
                   controller: _scrollController,
                   itemCount: _songs.length + (_loadingMore ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (!_didInitialScroll && !_loading && _songs.isNotEmpty) {
+                      _didInitialScroll = true;
+                      final currentIndex = _songs.indexWhere(
+                        (s) => s.id == playerState.currentSong?.id &&
+                            s.source == playerState.currentSong?.source,
+                      );
+                      if (currentIndex >= 0) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _scrollToCurrentSong(currentIndex, _songs.length);
+                        });
+                      }
+                    }
                     if (index >= _songs.length) {
                       return const Padding(
                         padding: EdgeInsets.all(16),
@@ -153,81 +176,94 @@ class _LeaderboardDetailScreenState
                       );
                     }
                     final song = _songs[index];
-                    final isCurrent = playerState.currentSong?.id == song.id;
+                    final isCurrent = playerState.currentSong?.id == song.id &&
+                        playerState.currentSong?.source == song.source;
+                    final isPlaying = isCurrent && playerState.isPlaying;
                     final isTop3 = index < 3;
                     final colorScheme = Theme.of(context).colorScheme;
-                    return ListTile(
-                      dense: true,
-                      leading: SizedBox(
-                        width: 28,
-                        child: Center(
-                          child: isTop3
-                              ? Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: isCurrent
+                            ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+                            : Colors.transparent,
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        leading: SizedBox(
+                          width: 28,
+                          child: Center(
+                            child: isTop3
+                                ? Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                : Text(
                                     '${index + 1}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
+                                      color: isCurrent
+                                          ? colorScheme.primary
+                                          : colorScheme.onSurfaceVariant,
                                     ),
                                   ),
-                                )
-                              : Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
+                          ),
+                        ),
+                        title: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: song.name,
+                                style: TextStyle(
+                                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                  color: isCurrent ? colorScheme.primary : null,
                                 ),
-                        ),
-                      ),
-                      title: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: song.name,
-                              style: TextStyle(
-                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                color: isCurrent ? colorScheme.primary : null,
                               ),
-                            ),
-                            TextSpan(
-                              text: ' - ${song.artist}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: colorScheme.onSurfaceVariant,
+                              TextSpan(
+                                text: ' - ${song.artist}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: IconButton(
-                        icon: Icon(
-                          playerState.isPlaying && isCurrent
-                              ? Icons.pause_circle_filled
-                              : Icons.play_circle_outline,
-                          color: isCurrent ? colorScheme.primary : null,
+                        trailing: IconButton(
+                          icon: Icon(
+                            isPlaying
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_outline,
+                            color: isCurrent ? colorScheme.primary : null,
+                          ),
+                          onPressed: () {
+                            if (isPlaying) {
+                              player.pause();
+                            } else {
+                              queue.replaceQueue(_songs, song);
+                              player.playSong(
+                                song,
+                                quality: settings.playbackQuality,
+                              );
+                            }
+                          },
                         ),
-                        onPressed: () {
-                          if (playerState.isPlaying && isCurrent) {
-                            player.pause();
-                          } else {
-                            queue.replaceQueue(_songs, song);
-                            player.playSong(
-                              song,
-                              quality: settings.playbackQuality,
-                            );
-                          }
-                        },
                       ),
                     );
                   },

@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"net"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -249,7 +249,8 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 			fmt.Sscanf(c.DefaultQuery("count", "20"), "%d", &count)
 			results, err := h.BilibiliSearch(c.Query("name"), page, count)
 			if err != nil {
-				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				// B站风控降级：返回空列表而非502
+				c.JSON(http.StatusOK, []interface{}{})
 				return
 			}
 			c.JSON(http.StatusOK, results)
@@ -264,13 +265,13 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
 		case "mv":
 			bvid := c.Query("id")
-			// MV 用视频流，目前复用音频 URL（前端 video_player 可播放）
-			audioURL, err := h.BilibiliPlayUrl(bvid)
+			// MV 需要视频流，不是音频流
+			videoURL, err := h.BilibiliVideoUrl(bvid)
 			if err != nil {
 				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 				return
 			}
-			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
+			writeJSON(c, http.StatusOK, gin.H{"url": videoURL})
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported types for bilibili"})
 		}
@@ -285,7 +286,7 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				return
 			}
 			c.JSON(http.StatusOK, results)
-		case "url", "mv":
+		case "url":
 			videoId := c.Query("id")
 			audioURL, err := youtubeGetAudioUrl(videoId)
 			if err != nil {
@@ -293,6 +294,14 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				return
 			}
 			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
+		case "mv":
+			videoId := c.Query("id")
+			videoURL, err := youtubeGetVideoUrl(videoId)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+				return
+			}
+			writeJSON(c, http.StatusOK, gin.H{"url": videoURL})
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported types for youtube"})
 		}
@@ -690,9 +699,18 @@ func (h *SolaraHandler) DiscoverSongList(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusOK, result)
-	case "youtube", "jamendo":
-		// YouTube/Jamendo 无歌单概念，返回空
-		c.JSON(http.StatusOK, []interface{}{})
+	case "jamendo":
+		// Jamendo：使用电台分类作为歌单
+		result, err := jamendoSongList()
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+	case "youtube":
+		// YouTube：使用音乐分类关键词作为歌单
+		result := youtubeSongList()
+		c.JSON(http.StatusOK, result)
 	default: // netease
 		limitStr := c.DefaultQuery("limit", "30")
 		limit := 30
@@ -758,8 +776,25 @@ func (h *SolaraHandler) DiscoverSongListDetail(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, result)
 		return
-	case "youtube", "jamendo":
-		c.JSON(http.StatusOK, []interface{}{})
+	case "jamendo":
+		// Jamendo：通过电台 ID 获取对应标签的歌曲
+		id := c.Param("id")
+		result, err := jamendoSongListDetail(id, limit)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+		return
+	case "youtube":
+		// YouTube：通过分类 ID 搜索对应关键词的歌曲
+		id := c.Param("id")
+		result, err := youtubeSongListDetail(id, limit)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
 		return
 	}
 
@@ -868,6 +903,9 @@ func fetchBilibili(apiURL string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("bilibili api status %d", resp.StatusCode)
+	}
 	var result map[string]interface{}
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
@@ -999,16 +1037,93 @@ func (h *SolaraHandler) BilibiliPlayUrl(bvid string) (string, error) {
 	return "", fmt.Errorf("no audio url found")
 }
 
-var bilibiliCategories = []struct{ id, name, keyword string }{
-	{"bili_pop", "流行", "流行音乐"},
-	{"bili_electronic", "电子", "电子音乐"},
-	{"bili_rock", "摇滚", "摇滚乐"},
-	{"bili_folk", "民谣", "民谣歌曲推荐"},
-	{"bili_ancient", "古风", "古风音乐"},
-	{"bili_cover", "翻唱", "翻唱"},
-	{"bili_jazz", "爵士", "jazz music"},
-	{"bili_classical", "古典", "古典音乐"},
-	{"bili_ranking", "音乐区周榜", ""},
+// BilibiliVideoUrl 获取B站视频流URL（用于MV播放）
+func (h *SolaraHandler) BilibiliVideoUrl(bvid string) (string, error) {
+	// 检查缓存
+	cacheKey := "video_" + bvid
+	biliCacheMu.Lock()
+	if entry, ok := biliCache[cacheKey]; ok && time.Now().Before(entry.expiry) {
+		biliCacheMu.Unlock()
+		return entry.url, nil
+	}
+	biliCacheMu.Unlock()
+
+	// 1. 获取 cid
+	pageURL := fmt.Sprintf("https://api.bilibili.com/x/player/pagelist?bvid=%s", url.QueryEscape(bvid))
+	pageData, err := fetchBilibili(pageURL)
+	if err != nil {
+		return "", err
+	}
+	pages, _ := pageData["data"].([]interface{})
+	if len(pages) == 0 {
+		return "", fmt.Errorf("no pages found for bvid %s", bvid)
+	}
+	firstPage, _ := pages[0].(map[string]interface{})
+	cid := jsonIDToString(firstPage["cid"])
+
+	// 2. 获取播放 URL（fnval=16 = dash格式，qn=80 = 高清1080P）
+	playURL := fmt.Sprintf(
+		"https://api.bilibili.com/x/player/playurl?bvid=%s&cid=%s&fnval=16&qn=80",
+		url.QueryEscape(bvid), url.QueryEscape(cid),
+	)
+	playData, err := fetchBilibili(playURL)
+	if err != nil {
+		return "", err
+	}
+	dataMap, _ := playData["data"].(map[string]interface{})
+	if dataMap == nil {
+		return "", fmt.Errorf("no data in playurl response")
+	}
+
+	// 优先取 dash video
+	if dash, ok := dataMap["dash"].(map[string]interface{}); ok {
+		if videoList, ok := dash["video"].([]interface{}); ok && len(videoList) > 0 {
+			// 取第一个视频流（通常是最高质量）
+			if videoItem, ok := videoList[0].(map[string]interface{}); ok {
+				if baseUrl, ok := videoItem["baseUrl"].(string); ok && baseUrl != "" {
+					biliCacheMu.Lock()
+					biliCache[cacheKey] = biliCacheEntry{url: baseUrl, expiry: time.Now().Add(90 * time.Second)}
+					biliCacheMu.Unlock()
+					return baseUrl, nil
+				}
+				if baseUrl, ok := videoItem["base_url"].(string); ok && baseUrl != "" {
+					biliCacheMu.Lock()
+					biliCache[cacheKey] = biliCacheEntry{url: baseUrl, expiry: time.Now().Add(90 * time.Second)}
+					biliCacheMu.Unlock()
+					return baseUrl, nil
+				}
+			}
+		}
+	}
+
+	// fallback: durl（旧版格式，包含音视频混合流）
+	if durls, ok := dataMap["durl"].([]interface{}); ok && len(durls) > 0 {
+		if d, ok := durls[0].(map[string]interface{}); ok {
+			if u, ok := d["url"].(string); ok && u != "" {
+				biliCacheMu.Lock()
+				biliCache[cacheKey] = biliCacheEntry{url: u, expiry: time.Now().Add(90 * time.Second)}
+				biliCacheMu.Unlock()
+				return u, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no video url found")
+}
+
+var bilibiliCategories = []struct {
+	id, name      string
+	searchKeyword string   // 用于搜索的关键词
+	filterWords   []string // 搜索结果按此过滤（空则不过滤）
+}{
+	{"bili_pop", "流行", "流行歌曲", nil},
+	{"bili_electronic", "电子", "电子音乐 EDM", nil},
+	{"bili_rock", "摇滚", "摇滚乐队", nil},
+	{"bili_folk", "民谣", "民谣吉他弹唱", nil},
+	{"bili_ancient", "古风", "古风国风音乐", nil},
+	{"bili_cover", "翻唱", "翻唱cover", nil},
+	{"bili_jazz", "爵士", "jazz爵士乐", nil},
+	{"bili_classical", "古典", "钢琴古典音乐", nil},
+	{"bili_ranking", "音乐区周榜", "", nil},
 }
 
 func bilibiliLeaderboardList() ([]map[string]interface{}, error) {
@@ -1073,64 +1188,103 @@ func bilibiliLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
 	return bilibiliLeaderboardDetailByID("bili_ranking", limit)
 }
 
+// bilibiliSearchCache 分类搜索缓存（30分钟）
+type biliSearchCacheEntry struct {
+	results []map[string]interface{}
+	expiry  time.Time
+}
+
+var (
+	biliSearchCache   = map[string]biliSearchCacheEntry{}
+	biliSearchCacheMu sync.Mutex
+)
+
 func bilibiliLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
-	// 找对应分类的关键词
-	keyword := ""
+	// 周榜：直接用排行榜 API
+	if id == "bili_ranking" || id == "" {
+		return bilibiliRankingDetail(limit)
+	}
+
+	// 其他分类：全量搜索「音乐」，按分类关键词过滤标题
+	// 先查缓存
+	biliSearchCacheMu.Lock()
+	if entry, ok := biliSearchCache[id]; ok && time.Now().Before(entry.expiry) {
+		biliSearchCacheMu.Unlock()
+		if len(entry.results) > limit {
+			return entry.results[:limit], nil
+		}
+		return entry.results, nil
+	}
+	biliSearchCacheMu.Unlock()
+
+	// 找分类的搜索关键词
+	searchKeyword := "音乐"
 	for _, cat := range bilibiliCategories {
-		if cat.id == id {
-			keyword = cat.keyword
+		if cat.id == id && cat.searchKeyword != "" {
+			searchKeyword = cat.searchKeyword
 			break
 		}
 	}
-	// 无关键词或周榜，用排行榜 API
-	if keyword == "" {
-		apiURL := "https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all"
-		data, err := fetchBilibili(apiURL)
-		if err != nil {
-			return nil, err
-		}
-		dataMap, _ := data["data"].(map[string]interface{})
-		if dataMap == nil {
-			return []map[string]interface{}{}, nil
-		}
-		list, _ := dataMap["list"].([]interface{})
-		result := make([]map[string]interface{}, 0)
-		for i, item := range list {
-			if i >= limit {
-				break
-			}
-			m, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			bvid, _ := m["bvid"].(string)
-			title, _ := m["title"].(string)
-			owner, _ := m["owner"].(map[string]interface{})
-			author := ""
-			if owner != nil {
-				author, _ = owner["name"].(string)
-			}
-			pic, _ := m["pic"].(string)
-			if !strings.HasPrefix(pic, "http") {
-				pic = "https:" + pic
-			}
-			result = append(result, map[string]interface{}{
-				"id":       bvid,
-				"name":     title,
-				"artist":   author,
-				"album":    "Bilibili音乐区",
-				"pic_id":   "",
-				"pic_url":  pic,
-				"url_id":   bvid,
-				"mv_id":    bvid,
-				"lyric_id": "",
-				"source":   "bilibili",
-			})
-		}
-		return result, nil
+
+	// 用分类专属关键词搜索
+	h := &SolaraHandler{}
+	result, err := h.BilibiliSearch(searchKeyword, 1, limit)
+	if err != nil {
+		return []map[string]interface{}{}, nil
 	}
-	// 用关键词搜索
-	return h_bilibiliSearchStatic(keyword, limit)
+
+	// 写缓存
+	biliSearchCacheMu.Lock()
+	biliSearchCache[id] = biliSearchCacheEntry{results: result, expiry: time.Now().Add(30 * time.Minute)}
+	biliSearchCacheMu.Unlock()
+	return result, nil
+}
+
+func bilibiliRankingDetail(limit int) ([]map[string]interface{}, error) {
+	apiURL := "https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all"
+	data, err := fetchBilibili(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	dataMap, _ := data["data"].(map[string]interface{})
+	if dataMap == nil {
+		return []map[string]interface{}{}, nil
+	}
+	list, _ := dataMap["list"].([]interface{})
+	result := make([]map[string]interface{}, 0)
+	for i, item := range list {
+		if i >= limit {
+			break
+		}
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		bvid, _ := m["bvid"].(string)
+		title, _ := m["title"].(string)
+		owner, _ := m["owner"].(map[string]interface{})
+		author := ""
+		if owner != nil {
+			author, _ = owner["name"].(string)
+		}
+		pic, _ := m["pic"].(string)
+		if !strings.HasPrefix(pic, "http") {
+			pic = "https:" + pic
+		}
+		result = append(result, map[string]interface{}{
+			"id":       bvid,
+			"name":     title,
+			"artist":   author,
+			"album":    "Bilibili音乐区",
+			"pic_id":   "",
+			"pic_url":  pic,
+			"url_id":   bvid,
+			"mv_id":    bvid,
+			"lyric_id": "",
+			"source":   "bilibili",
+		})
+	}
+	return result, nil
 }
 
 func h_bilibiliSearchStatic(keyword string, limit int) ([]map[string]interface{}, error) {
@@ -1169,6 +1323,86 @@ func jamendoSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 		"https://api.jamendo.com/v3.0/tracks?client_id=%s&namesearch=%s&format=json&limit=%d&include=musicinfo",
 		cid, url.QueryEscape(keyword), limit,
 	)
+	return jamendoParseTracks(apiURL)
+}
+
+// jamendoSongList 获取 Jamendo 歌单列表（使用电台分类）
+func jamendoSongList() ([]map[string]interface{}, error) {
+	cid := jamendoClientID()
+	if cid == "" {
+		return nil, fmt.Errorf("JAMENDO_CLIENT_ID not configured")
+	}
+	apiURL := fmt.Sprintf("https://api.jamendo.com/v3.0/radios/?client_id=%s&format=json&limit=20", cid)
+	data, err := fetchJamendo(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	results, _ := data["results"].([]interface{})
+	songLists := make([]map[string]interface{}, 0, len(results))
+	for _, item := range results {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		songLists = append(songLists, map[string]interface{}{
+			"id":          fmt.Sprintf("%v", m["id"]),
+			"name":        m["dispname"],
+			"author":      "Jamendo Radio",
+			"coverUrl":    m["image"],
+			"playCount":   "",
+			"description": fmt.Sprintf("%s - Free Music Radio", m["dispname"]),
+			"source":      "jamendo",
+		})
+	}
+	return songLists, nil
+}
+
+// jamendoSongListDetail 获取 Jamendo 歌单详情（通过电台名称获取对应标签的歌曲）
+func jamendoSongListDetail(radioID string, limit int) ([]map[string]interface{}, error) {
+	// 电台 ID 到标签的映射
+	radioTagMap := map[string]string{
+		"1":  "",           // bestof - 不指定标签，获取热门
+		"2":  "electronic", // electro
+		"3":  "rock",
+		"4":  "lounge",
+		"5":  "hiphop",
+		"6":  "world",
+		"7":  "jazz",
+		"8":  "classical",
+		"9":  "pop",
+		"10": "songwriting",
+		"11": "metal",
+		"12": "soundtrack",
+		"13": "relaxation",
+		"14": "piano",
+		"15": "happy",
+	}
+
+	tag, ok := radioTagMap[radioID]
+	if !ok {
+		tag = "" // 默认获取热门
+	}
+
+	cid := jamendoClientID()
+	if cid == "" {
+		return nil, fmt.Errorf("JAMENDO_CLIENT_ID not configured")
+	}
+
+	var apiURL string
+	if tag == "" {
+		// 获取热门歌曲
+		apiURL = fmt.Sprintf(
+			"https://api.jamendo.com/v3.0/tracks?client_id=%s&order=popularity_total&format=json&limit=%d&include=musicinfo",
+			cid, limit,
+		)
+	} else {
+		// 按标签获取歌曲
+		apiURL = fmt.Sprintf(
+			"https://api.jamendo.com/v3.0/tracks?client_id=%s&tags=%s&order=popularity_total&format=json&limit=%d&include=musicinfo",
+			cid, url.QueryEscape(tag), limit,
+		)
+	}
+
 	return jamendoParseTracks(apiURL)
 }
 
@@ -1381,6 +1615,81 @@ func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interf
 		return nil, err
 	}
 	return result, nil
+}
+
+// youtubeSongList 获取 YouTube 歌单列表（使用音乐分类）
+func youtubeSongList() []map[string]interface{} {
+	categories := []struct {
+		id, name, keyword, coverUrl string
+	}{
+		{"1", "流行音乐 Pop", "pop music hits", "https://i.ytimg.com/vi/kTJczUoc26U/hqdefault.jpg"},
+		{"2", "摇滚 Rock", "rock music", "https://i.ytimg.com/vi/fJ9rUzIMcZQ/hqdefault.jpg"},
+		{"3", "嘻哈说唱 Hip Hop", "hip hop rap music", "https://i.ytimg.com/vi/uelHwf8o7_U/hqdefault.jpg"},
+		{"4", "电子音乐 EDM", "edm electronic music", "https://i.ytimg.com/vi/IcrbM1l_BoI/hqdefault.jpg"},
+		{"5", "爵士 Jazz", "jazz music", "https://i.ytimg.com/vi/vmDDOFXSgAs/hqdefault.jpg"},
+		{"6", "古典 Classical", "classical music", "https://i.ytimg.com/vi/jgpJVI3tDbY/hqdefault.jpg"},
+		{"7", "乡村 Country", "country music", "https://i.ytimg.com/vi/VuNIsY6JdUw/hqdefault.jpg"},
+		{"8", "R&B/灵魂 Soul", "r&b soul music", "https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg"},
+		{"9", "雷鬼 Reggae", "reggae music", "https://i.ytimg.com/vi/CHekNnySAfM/hqdefault.jpg"},
+		{"10", "蓝调 Blues", "blues music", "https://i.ytimg.com/vi/0rEsVp5tiDQ/hqdefault.jpg"},
+		{"11", "金属 Metal", "metal music", "https://i.ytimg.com/vi/v2AC41dglnM/hqdefault.jpg"},
+		{"12", "朋克 Punk", "punk rock music", "https://i.ytimg.com/vi/z5rRZdiu1UE/hqdefault.jpg"},
+		{"13", "独立音乐 Indie", "indie music", "https://i.ytimg.com/vi/rVN1B-tUpgs/hqdefault.jpg"},
+		{"14", "放克 Funk", "funk music", "https://i.ytimg.com/vi/0CFuCYNx-1g/hqdefault.jpg"},
+		{"15", "迪斯科 Disco", "disco music", "https://i.ytimg.com/vi/h9nE2spOw_o/hqdefault.jpg"},
+		{"16", "K-Pop", "kpop music", "https://i.ytimg.com/vi/pSUydWEqKwE/hqdefault.jpg"},
+		{"17", "J-Pop", "jpop japanese music", "https://i.ytimg.com/vi/X9zw0QF12Kc/hqdefault.jpg"},
+		{"18", "拉丁 Latin", "latin music", "https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg"},
+		{"19", "氛围音乐 Ambient", "ambient music", "https://i.ytimg.com/vi/M5QY2_8704o/hqdefault.jpg"},
+		{"20", "Lo-Fi", "lofi hip hop music", "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg"},
+	}
+
+	result := make([]map[string]interface{}, 0, len(categories))
+	for _, cat := range categories {
+		result = append(result, map[string]interface{}{
+			"id":          cat.id,
+			"name":        cat.name,
+			"author":      "YouTube Music",
+			"coverUrl":    cat.coverUrl,
+			"playCount":   "",
+			"description": fmt.Sprintf("%s - Curated by YouTube Music", cat.name),
+			"source":      "youtube",
+		})
+	}
+	return result
+}
+
+// youtubeSongListDetail 获取 YouTube 歌单详情（通过分类 ID 搜索）
+func youtubeSongListDetail(categoryID string, limit int) ([]map[string]interface{}, error) {
+	categoryMap := map[string]string{
+		"1":  "pop music hits",
+		"2":  "rock music",
+		"3":  "hip hop rap music",
+		"4":  "edm electronic music",
+		"5":  "jazz music",
+		"6":  "classical music",
+		"7":  "country music",
+		"8":  "r&b soul music",
+		"9":  "reggae music",
+		"10": "blues music",
+		"11": "metal music",
+		"12": "punk rock music",
+		"13": "indie music",
+		"14": "funk music",
+		"15": "disco music",
+		"16": "kpop music",
+		"17": "jpop japanese music",
+		"18": "latin music",
+		"19": "ambient music",
+		"20": "lofi hip hop music",
+	}
+
+	keyword, ok := categoryMap[categoryID]
+	if !ok {
+		keyword = "pop music hits" // 默认
+	}
+
+	return youtubeSearch(keyword, limit)
 }
 
 func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) {
@@ -1596,6 +1905,25 @@ func youtubeGetAudioUrl(videoId string) (string, error) {
 	return u, nil
 }
 
+func youtubeGetVideoUrl(videoId string) (string, error) {
+	cookiesPath := "/app/yt_cookies.txt"
+	// 格式18 = 360p 预合并 mp4，几乎所有视频都有，video_player 单 URL 直接播放
+	// fallback: best[ext=mp4] -> best
+	cmd := fmt.Sprintf(
+		"yt-dlp --js-runtimes node --cookies %s -f '18/best[ext=mp4]/best' --get-url 'https://www.youtube.com/watch?v=%s' 2>/dev/null",
+		cookiesPath, videoId,
+	)
+	out, err := execShell(cmd)
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp video failed: %w", err)
+	}
+	u := strings.TrimSpace(strings.Split(strings.TrimSpace(out), "\n")[0])
+	if u == "" {
+		return "", fmt.Errorf("yt-dlp returned empty video url")
+	}
+	return u, nil
+}
+
 func execShell(cmd string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -1630,10 +1958,11 @@ func youtubeLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
 func youtubeLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
 	return youtubeSearch("Bruno Mars", limit)
 }
+
 // ── Cookie 管理 ────────────────────────────────────────────────────
 
 const (
-	ytCookiePath      = "/app/yt_cookies.txt"
+	ytCookiePath       = "/app/yt_cookies.txt"
 	bilibiliCookiePath = "/app/bilibili_cookies.txt"
 )
 

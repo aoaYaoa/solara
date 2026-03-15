@@ -196,17 +196,41 @@ class PlaylistScreen extends ConsumerWidget {
 }
 
 // 歌单详情页
-class PlaylistDetailScreen extends ConsumerWidget {
+class PlaylistDetailScreen extends ConsumerStatefulWidget {
   final UserPlaylist playlist;
   const PlaylistDetailScreen({super.key, required this.playlist});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlaylistDetailScreen> createState() => _PlaylistDetailScreenState();
+}
+
+class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
+  final _scrollController = ScrollController();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // 从 provider 获取最新数据
     final state = ref.watch(playlistStateProvider);
     final current = state.playlists.firstWhere(
-      (p) => p.id == playlist.id,
-      orElse: () => playlist,
+      (p) => p.id == widget.playlist.id,
+      orElse: () => widget.playlist,
     );
     final player = ref.read(playerControllerProvider.notifier);
     final queueNotifier = ref.read(queueStateProvider.notifier);
@@ -250,49 +274,91 @@ class PlaylistDetailScreen extends ConsumerWidget {
                 ),
               )
               : ListView.builder(
+                controller: _scrollController,
                 itemCount: current.songs.length,
                 itemBuilder: (context, index) {
+                  if (!_didInitialScroll && current.songs.isNotEmpty) {
+                    _didInitialScroll = true;
+                    final playerState = ref.watch(playerControllerProvider);
+                    final currentIndex = current.songs.indexWhere(
+                      (s) => s.id == playerState.currentSong?.id &&
+                          s.source == playerState.currentSong?.source,
+                    );
+                    if (currentIndex >= 0) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToCurrentSong(currentIndex, current.songs.length);
+                      });
+                    }
+                  }
                   final song = current.songs[index];
-                  return ListTile(
-                    title: Text(
-                      song.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  final playerState = ref.watch(playerControllerProvider);
+                  final isCurrent = playerState.currentSong?.id == song.id &&
+                      playerState.currentSong?.source == song.source;
+                  final isPlaying = isCurrent && playerState.isPlaying;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: isCurrent
+                          ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4)
+                          : Colors.transparent,
                     ),
-                    subtitle: Text(
-                      '${song.artist} · ${song.album}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.play_arrow),
-                          onPressed: () {
+                    child: ListTile(
+                      title: Text(
+                        song.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: isCurrent
+                            ? TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              )
+                            : null,
+                      ),
+                      subtitle: Text(
+                        '${song.artist} · ${song.album}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: isCurrent
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            onPressed: () {
+                              if (isPlaying) {
+                                player.pause();
+                              } else {
                                 queueNotifier.replaceQueue(current.songs, song);
                                 player.playSong(
                                   song,
                                   quality: settings.playbackQuality,
                                 );
-                              },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed:
-                              () => ref
-                                  .read(playlistStateProvider.notifier)
-                                  .removeSongFromPlaylist(current.id, song),
-                        ),
-                      ],
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed:
+                                () => ref
+                                    .read(playlistStateProvider.notifier)
+                                    .removeSongFromPlaylist(current.id, song),
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        queueNotifier.replaceQueue(current.songs, song);
+                        player.playSong(
+                          song,
+                          quality: settings.playbackQuality,
+                        );
+                      },
                     ),
-                    onTap: () {
-                      queueNotifier.replaceQueue(current.songs, song);
-                      player.playSong(
-                        song,
-                        quality: settings.playbackQuality,
-                      );
-                    },
                   );
                 },
               ),

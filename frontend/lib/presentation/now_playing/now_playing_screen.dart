@@ -542,14 +542,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     dynamic playerState,
     Color primaryColor,
   ) {
-    final availH = MediaQuery.of(context).size.height * 0.4;
-    final discSize = math.min(280.0, math.min(MediaQuery.of(context).size.width * 0.65, availH));
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ScaleTransition(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availH = constraints.maxHeight;
+        final availW = constraints.maxWidth;
+        final discSize = math.min(280.0, math.min(availW * 0.65, availH - 16));
+        return Center(
+          child: ScaleTransition(
             scale: _scaleAnimation,
             child: AnimatedBuilder(
               animation: _rotationController,
@@ -585,9 +584,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               ),
             ),
           ),
-          const SizedBox(height: 24),
-        ],
-      ),
+        );
+      },
     );
   }
 

@@ -7,11 +7,35 @@ import '../../services/player_controller.dart';
 import '../../services/image_headers.dart' show proxyImageUrl;
 import '../../data/providers.dart';
 
-class FavoritesPanel extends ConsumerWidget {
+class FavoritesPanel extends ConsumerStatefulWidget {
   const FavoritesPanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FavoritesPanel> createState() => _FavoritesPanelState();
+}
+
+class _FavoritesPanelState extends ConsumerState<FavoritesPanel> {
+  final _scrollController = ScrollController();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final favoritesState = ref.watch(favoritesStateProvider);
     final favorites = ref.read(favoritesStateProvider.notifier);
     final player = ref.read(playerControllerProvider.notifier);
@@ -55,25 +79,61 @@ class FavoritesPanel extends ConsumerWidget {
         const Divider(height: 1),
         Expanded(
           child: ListView.builder(
+            controller: _scrollController,
             itemCount: songs.length,
             itemBuilder: (context, index) {
+              if (!_didInitialScroll && songs.isNotEmpty) {
+                _didInitialScroll = true;
+                final playerState = ref.watch(playerControllerProvider);
+                final currentIndex = songs.indexWhere(
+                  (s) => s.id == playerState.currentSong?.id &&
+                      s.source == playerState.currentSong?.source,
+                );
+                if (currentIndex >= 0) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToCurrentSong(currentIndex, songs.length);
+                  });
+                }
+              }
               final song = songs[index];
-              return ListTile(
-                onTap: () {
-                  queue.replaceQueue(songs, song);
-                  player.playSong(song, quality: settings.playbackQuality);
-                },
-                leading: _FavCover(song: song),
-                title: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+              final playerState = ref.watch(playerControllerProvider);
+              final isCurrent = playerState.currentSong?.id == song.id &&
+                  playerState.currentSong?.source == song.source;
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: isCurrent
+                      ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+                      : Colors.transparent,
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
-                  onPressed: () => favorites.toggleFavorite(song),
+                child: ListTile(
+                  onTap: () {
+                    queue.replaceQueue(songs, song);
+                    player.playSong(song, quality: settings.playbackQuality);
+                  },
+                  leading: _FavCover(song: song),
+                  title: Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: isCurrent
+                        ? TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          )
+                        : null,
+                  ),
+                  subtitle: Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
+                    onPressed: () => favorites.toggleFavorite(song),
+                  ),
                 ),
               );
             },

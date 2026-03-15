@@ -32,12 +32,23 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
   bool _hasMore = true;
   int _page = 1;
   String? _error;
+  bool _didInitialScroll = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     _load();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
   }
 
   @override
@@ -193,57 +204,87 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
             else ...[
               SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
+                  if (!_didInitialScroll && !_loading && _songs.isNotEmpty) {
+                    _didInitialScroll = true;
+                    final currentIndex = _songs.indexWhere(
+                      (s) => s.id == playerState.currentSong?.id &&
+                          s.source == playerState.currentSong?.source,
+                    );
+                    if (currentIndex >= 0) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToCurrentSong(currentIndex, _songs.length);
+                      });
+                    }
+                  }
                   final song = _songs[index];
                   final isFav = favorites.isFavorite(song);
-                  return ListTile(
-                    leading: Text(
-                      '${index + 1}',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  final isCurrent = playerState.currentSong?.id == song.id &&
+                      playerState.currentSong?.source == song.source;
+                  final isPlaying = isCurrent && playerState.isPlaying;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: isCurrent
+                          ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4)
+                          : Colors.transparent,
                     ),
-                    title: Text(
-                      song.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            isFav ? Icons.favorite : Icons.favorite_border,
-                          ),
-                          onPressed: () => favorites.toggleFavorite(song),
+                    child: ListTile(
+                      leading: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          color: isCurrent
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                         ),
-                        IconButton(
-                          icon: Icon(
-                            playerState.isPlaying &&
-                                    playerState.currentSong?.id == song.id
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                            color:
-                                playerState.currentSong?.id == song.id
-                                    ? Theme.of(context).colorScheme.primary
-                                    : null,
+                      ),
+                      title: Text(
+                        song.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: isCurrent
+                            ? TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              )
+                            : null,
+                      ),
+                      subtitle: Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                            ),
+                            onPressed: () => favorites.toggleFavorite(song),
                           ),
-                          onPressed: () {
-                            if (playerState.isPlaying &&
-                                playerState.currentSong?.id == song.id) {
-                              player.pause();
-                            } else {
-                              queue.replaceQueue(_songs, song);
-                              player.playSong(
-                                song,
-                                quality: settings.playbackQuality,
-                              );
-                            }
-                          },
-                        ),
-                      ],
+                          IconButton(
+                            icon: Icon(
+                              isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: isCurrent
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            onPressed: () {
+                              if (isPlaying) {
+                                player.pause();
+                              } else {
+                                queue.replaceQueue(_songs, song);
+                                player.playSong(
+                                  song,
+                                  quality: settings.playbackQuality,
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }, childCount: _songs.length),

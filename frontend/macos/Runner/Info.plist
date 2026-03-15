@@ -28,5 +28,11 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>This app needs to control system volume and brightness.</string>
 </dict>
 </plist>

@@ -297,42 +297,52 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                                 }
                                 final song = searchState.results[index];
                                 final isFavorite = favorites.isFavorite(song);
-                                final isPlaying = playerState.isPlaying &&
-                                    playerState.currentSong?.id == song.id;
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                                  onTap: () {
-                                    queue.replaceQueue(searchState.results, song);
-                                    player.playSong(song, quality: settings.playbackQuality);
-                                  },
-                                  leading: _SongCover(picId: song.picId, source: song.source, picUrl: song.picUrl),
-                                  title: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                      style: isPlaying ? TextStyle(color: colorScheme.primary,
-                                          fontWeight: FontWeight.w600) : null),
-                                  subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border,
-                                            size: 20, color: isFavorite ? Colors.redAccent : null),
-                                        onPressed: () => favorites.toggleFavorite(song),
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                      IconButton(
-                                        icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
-                                            size: 20, color: isPlaying ? colorScheme.primary : null),
-                                        onPressed: () {
-                                          if (isPlaying) {
-                                            player.toggle();
-                                          } else {
-                                            queue.replaceQueue(searchState.results, song);
-                                            player.playSong(song, quality: settings.playbackQuality);
-                                          }
-                                        },
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ],
+                                final isCurrent = playerState.currentSong?.id == song.id &&
+                                    playerState.currentSong?.source == song.source;
+                                final isPlaying = isCurrent && playerState.isPlaying;
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: isCurrent
+                                        ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+                                        : Colors.transparent,
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                                    onTap: () {
+                                      queue.replaceQueue(searchState.results, song);
+                                      player.playSong(song, quality: settings.playbackQuality);
+                                    },
+                                    leading: _SongCover(picId: song.picId, source: song.source, picUrl: song.picUrl),
+                                    title: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                        style: isCurrent ? TextStyle(color: colorScheme.primary,
+                                            fontWeight: FontWeight.w600) : null),
+                                    subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border,
+                                              size: 20, color: isFavorite ? Colors.redAccent : null),
+                                          onPressed: () => favorites.toggleFavorite(song),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                        IconButton(
+                                          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
+                                              size: 20, color: isCurrent ? colorScheme.primary : null),
+                                          onPressed: () {
+                                            if (isPlaying) {
+                                              player.toggle();
+                                            } else {
+                                              queue.replaceQueue(searchState.results, song);
+                                              player.playSong(song, quality: settings.playbackQuality);
+                                            }
+                                          },
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },

@@ -6,11 +6,35 @@ import '../../domain/state/queue_state.dart';
 import '../../domain/state/settings_state.dart';
 import '../../services/player_controller.dart';
 
-class HistoryPanel extends ConsumerWidget {
+class HistoryPanel extends ConsumerStatefulWidget {
   const HistoryPanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryPanel> createState() => _HistoryPanelState();
+}
+
+class _HistoryPanelState extends ConsumerState<HistoryPanel> {
+  final _scrollController = ScrollController();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToCurrentSong(int currentIndex, int total) {
+    if (!_scrollController.hasClients || currentIndex < 0) return;
+    const itemHeight = 60.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = (currentIndex * itemHeight) - (viewportHeight / 2) - (itemHeight / 2);
+    _scrollController.jumpTo(
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final historyState = ref.watch(historyStateProvider);
     final player = ref.read(playerControllerProvider.notifier);
     final queue = ref.read(queueStateProvider.notifier);
@@ -77,8 +101,29 @@ class HistoryPanel extends ConsumerWidget {
         const Divider(height: 1),
         Expanded(
           child: ListView.builder(
+            controller: _scrollController,
             itemCount: items.length,
             itemBuilder: (context, index) {
+              if (!_didInitialScroll && items.isNotEmpty) {
+                _didInitialScroll = true;
+                final playerState = ref.watch(playerControllerProvider);
+                // 找到当前播放歌曲在列表中的位置（跳过 header）
+                var currentIndex = -1;
+                for (var i = 0; i < items.length; i++) {
+                  if (!items[i].isHeader) {
+                    if (items[i].entry!.song.id == playerState.currentSong?.id &&
+                        items[i].entry!.song.source == playerState.currentSong?.source) {
+                      currentIndex = i;
+                      break;
+                    }
+                  }
+                }
+                if (currentIndex >= 0) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToCurrentSong(currentIndex, items.length);
+                  });
+                }
+              }
               final item = items[index];
               if (item.isHeader) {
                 return Padding(
@@ -95,23 +140,45 @@ class HistoryPanel extends ConsumerWidget {
               }
               final entry = item.entry!;
               final song = entry.song;
-              return ListTile(
-                leading: const Icon(Icons.music_note),
-                title: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(
-                  '${song.artist} · ${_formatTime(entry.playedAt)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+              final playerState = ref.watch(playerControllerProvider);
+              final isCurrent = playerState.currentSong?.id == song.id &&
+                  playerState.currentSong?.source == song.source;
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: isCurrent
+                      ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+                      : Colors.transparent,
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => ref.read(historyStateProvider.notifier).removeEntry(entry),
+                child: ListTile(
+                  leading: const Icon(Icons.music_note),
+                  title: Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: isCurrent
+                        ? TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          )
+                        : null,
+                  ),
+                  subtitle: Text(
+                    '${song.artist} · ${_formatTime(entry.playedAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => ref.read(historyStateProvider.notifier).removeEntry(entry),
+                  ),
+                  onTap: () {
+                    queue.replaceQueue(songs, song);
+                    player.playSong(song, quality: settings.playbackQuality);
+                  },
                 ),
-                onTap: () {
-                  queue.replaceQueue(songs, song);
-                  player.playSong(song, quality: settings.playbackQuality);
-                },
               );
             },
           ),
