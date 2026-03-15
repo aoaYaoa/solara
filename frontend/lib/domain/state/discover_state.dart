@@ -68,29 +68,36 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
   }
 
   Future<void> loadAll({String source = 'netease'}) async {
-    state = DiscoverState(
-      loading: true,
-      loadedSource: source,
-    );
-    final repo = _ref.read(solaraRepositoryProvider);
-    // 并行加载，各自捕获错误，leaderboard 完成即可结束 loading
-    final leaderboardFuture = repo.fetchLeaderboardList(source: source).catchError((_) => <LeaderboardItem>[]);
-    final songListFuture = repo.fetchSongList(source: source, page: 1).catchError((_) => <SongListItem>[]);
-    final leaderboards = await leaderboardFuture;
-    if (!mounted) return;
-    state = state.copyWith(
-      leaderboards: leaderboards,
-      loading: false,
-      loadedSource: source,
-      clearError: true,
-    );
-    final songLists = await songListFuture;
-    if (!mounted) return;
-    state = state.copyWith(
-      songLists: songLists,
-      songListPage: 1,
-      hasMoreSongLists: songLists.length >= 30,
-    );
+    state = DiscoverState(loading: true, loadedSource: source);
+    try {
+      final repo = _ref.read(solaraRepositoryProvider);
+      List<LeaderboardItem> leaderboards = [];
+      List<SongListItem> songLists = [];
+      try {
+        leaderboards = await repo.fetchLeaderboardList(source: source)
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {}
+      if (!mounted) return;
+      state = state.copyWith(
+        leaderboards: leaderboards,
+        loading: false,
+        loadedSource: source,
+        clearError: true,
+      );
+      try {
+        songLists = await repo.fetchSongList(source: source, page: 1)
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {}
+      if (!mounted) return;
+      state = state.copyWith(
+        songLists: songLists,
+        songListPage: 1,
+        hasMoreSongLists: songLists.length >= 30,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(loading: false, error: e.toString());
+    }
   }
 
   Future<void> loadMoreSongLists({required String source}) async {
