@@ -1366,6 +1366,15 @@ func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interf
 }
 
 func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) {
+	// 检查搜索缓存（缓存30分钟）
+	cacheKey := fmt.Sprintf("%s:%d", keyword, limit)
+	ytSearchCacheMu.Lock()
+	if entry, ok := ytSearchCache[cacheKey]; ok && time.Now().Before(entry.expiry) {
+		ytSearchCacheMu.Unlock()
+		return entry.results, nil
+	}
+	ytSearchCacheMu.Unlock()
+
 	// 用 yt-dlp 搜索，避免 InnerTube API 的 TLS 指纹检测
 	cookiesPath := "/app/yt_cookies.txt"
 	cookiesArg := ""
@@ -1373,7 +1382,7 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 		cookiesArg = fmt.Sprintf("--cookies %s ", cookiesPath)
 	}
 	cmd := fmt.Sprintf(
-		"yt-dlp --dump-json --flat-playlist --no-warnings %s'ytsearch%d:%s' 2>/dev/null",
+		"yt-dlp --dump-json --flat-playlist --no-warnings %s'ytsearch%d:%s official music video' 2>/dev/null",
 		cookiesArg, limit, strings.ReplaceAll(keyword, "'", ""),
 	)
 	out, err := execShell(cmd)
@@ -1409,6 +1418,10 @@ func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 			"source":   "youtube",
 		})
 	}
+	// 写入搜索缓存
+	ytSearchCacheMu.Lock()
+	ytSearchCache[cacheKey] = ytSearchCacheEntry{results: result, expiry: time.Now().Add(30 * time.Minute)}
+	ytSearchCacheMu.Unlock()
 	return result, nil
 }
 
@@ -1497,13 +1510,20 @@ func youtubeParseListItem(renderer map[string]interface{}) map[string]interface{
 }
 
 type ytCacheEntry struct {
-	url     string
+	url    string
+	expiry time.Time
+}
+
+type ytSearchCacheEntry struct {
+	results []map[string]interface{}
 	expiry  time.Time
 }
 
 var (
-	ytCache   = map[string]ytCacheEntry{}
-	ytCacheMu sync.Mutex
+	ytCache         = map[string]ytCacheEntry{}
+	ytCacheMu       sync.Mutex
+	ytSearchCache   = map[string]ytSearchCacheEntry{}
+	ytSearchCacheMu sync.Mutex
 )
 
 type biliCacheEntry struct {
@@ -1558,8 +1578,7 @@ func execShell(cmd string) (string, error) {
 }
 
 func youtubeLeaderboardList() ([]map[string]interface{}, error) {
-	// YouTube 不按分类，只有一个「热门」入口，封面取第一首歌
-	results, _ := youtubeSearch("top music hits 2025", 1)
+	results, _ := youtubeSearch("Bruno Mars", 1)
 	coverUrl := ""
 	if len(results) > 0 {
 		coverUrl, _ = results[0]["pic_url"].(string)
@@ -1580,7 +1599,7 @@ func youtubeLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
 }
 
 func youtubeLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
-	return youtubeSearch("top music hits 2025", limit)
+	return youtubeSearch("Bruno Mars", limit)
 }
 // ── Cookie 管理 ────────────────────────────────────────────────────
 
