@@ -401,7 +401,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
 
           // ── 排行榜 ──────────────────────────────────
           _SectionTitle(title: '音乐馆', icon: Icons.bar_chart_rounded),
-          if (discoverState.loading)
+          if (discoverState.loading && discoverState.leaderboards.isEmpty)
             const SizedBox(
               height: 140,
               child: Center(child: CircularProgressIndicator()),
