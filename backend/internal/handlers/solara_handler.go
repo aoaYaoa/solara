@@ -254,8 +254,8 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 				return
 			}
-			// B站音频需要 Referer，通过后端代理播放
-			h.proxyRequest(c, audioURL, bilibiliHeaders())
+			// 返回JSON让前端直接播放（B站音频URL含鉴权参数，前端用时效性URL即可）
+			c.JSON(http.StatusOK, gin.H{"url": audioURL})
 		case "mv":
 			bvid := c.Query("id")
 			// MV 用视频流，目前复用音频 URL（前端 video_player 可播放）
@@ -1040,11 +1040,27 @@ func jamendoSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 }
 
 func jamendoLeaderboardList() ([]map[string]interface{}, error) {
+	cid := jamendoClientID()
+	coverUrl := ""
+	if cid != "" {
+		// 取第一首热门曲目的封面作为列表封面
+		apiURL := fmt.Sprintf(
+			"https://api.jamendo.com/v3.0/tracks?client_id=%s&order=popularity_total&format=json&limit=1",
+			cid,
+		)
+		if data, err := fetchJamendo(apiURL); err == nil {
+			if results, ok := data["results"].([]interface{}); ok && len(results) > 0 {
+				if m, ok := results[0].(map[string]interface{}); ok {
+					coverUrl, _ = m["image"].(string)
+				}
+			}
+		}
+	}
 	return []map[string]interface{}{
 		{
 			"id":              "jamendo_popular",
 			"name":            "热门音乐",
-			"coverUrl":        "https://imgjam1.jamendo.com/tracks/s1000/1000x1000/cover200.jpg",
+			"coverUrl":        coverUrl,
 			"updateFrequency": "实时更新",
 			"source":          "jamendo",
 		},
@@ -1299,13 +1315,6 @@ func youtubeLeaderboardList() ([]map[string]interface{}, error) {
 }
 
 func youtubeLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
-	// 用 browse API 获取 YouTube Music charts
-	apiURL := "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
-	data, err := fetchYouTube(apiURL, map[string]interface{}{"browseId": "FEmusic_charts"})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]map[string]interface{}, 0)
-	youtubeExtractSongs(data, &result, limit)
-	return result, nil
+	// 用搜索热门歌曲作为排行榜内容
+	return youtubeSearch("top hits music 2024", limit)
 }
