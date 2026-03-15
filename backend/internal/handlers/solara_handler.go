@@ -221,14 +221,15 @@ func (h *SolaraHandler) storageDelete(c *gin.Context) {
 }
 
 func (h *SolaraHandler) Proxy(c *gin.Context) {
-	if !h.isAuthed(c) {
-		c.Status(http.StatusUnauthorized)
+	targetParam := c.Query("url")
+	if targetParam != "" {
+		// 媒体流代理：allowlist 已限制域名，无需 auth
+		h.proxyKuwoAudio(c, targetParam)
 		return
 	}
 
-	targetParam := c.Query("url")
-	if targetParam != "" {
-		h.proxyKuwoAudio(c, targetParam)
+	if !h.isAuthed(c) {
+		c.Status(http.StatusUnauthorized)
 		return
 	}
 
@@ -257,7 +258,7 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				return
 			}
 			// 返回JSON让前端直接播放（B站音频URL含鉴权参数，前端用时效性URL即可）
-			c.JSON(http.StatusOK, gin.H{"url": audioURL})
+			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
 		case "mv":
 			bvid := c.Query("id")
 			// MV 用视频流，目前复用音频 URL（前端 video_player 可播放）
@@ -266,7 +267,7 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"url": audioURL})
+			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported types for bilibili"})
 		}
@@ -288,7 +289,7 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"url": audioURL})
+			writeJSON(c, http.StatusOK, gin.H{"url": audioURL})
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported types for youtube"})
 		}
@@ -351,6 +352,15 @@ func (h *SolaraHandler) ImgProxy(c *gin.Context) {
 	io.Copy(c.Writer, resp.Body)
 }
 
+// writeJSON 写入 JSON 响应，禁用 HTML 转义（避免 & 被转义为 \u0026 导致 URL 损坏）
+func writeJSON(c *gin.Context, status int, v interface{}) {
+	c.Status(status)
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	enc := json.NewEncoder(c.Writer)
+	enc.SetEscapeHTML(false)
+	enc.Encode(v) //nolint:errcheck
+}
+
 // neteaseGetSongUrl 获取网易云歌曲播放URL
 func (h *SolaraHandler) neteaseGetSongUrl(c *gin.Context) {
 	id := c.Query("id")
@@ -381,7 +391,7 @@ func (h *SolaraHandler) neteaseGetSongUrl(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "song url is empty (may require VIP or not available)"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"url": songURL})
+	writeJSON(c, http.StatusOK, gin.H{"url": songURL})
 }
 
 func (h *SolaraHandler) proxyKuwoAudio(c *gin.Context, targetURL string) {
@@ -396,8 +406,10 @@ func (h *SolaraHandler) proxyKuwoAudio(c *gin.Context, targetURL string) {
 	case strings.HasSuffix(host, "kuwo.cn"):
 		parsed.Scheme = "http"
 		referer = "https://www.kuwo.cn/"
-	case strings.HasSuffix(host, "bilivideo.com") || strings.HasSuffix(host, "bilivideo.cn") || strings.HasSuffix(host, "bilibili.com"):
+	case strings.HasSuffix(host, "bilivideo.com") || strings.HasSuffix(host, "bilivideo.cn") || strings.HasSuffix(host, "bilibili.com") || strings.HasSuffix(host, "akamaized.net") || strings.HasSuffix(host, "mcdn.bilivideo.cn"):
 		referer = "https://www.bilibili.com/"
+	case strings.HasSuffix(host, "googlevideo.com"):
+		referer = "https://www.youtube.com/"
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target"})
 		return
@@ -559,7 +571,8 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 	case "bilibili":
 		result, err := bilibiliLeaderboardDetailByID(id, limit)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			// B站可能触发风控返回 HTML，降级为空列表
+			c.JSON(http.StatusOK, []interface{}{})
 			return
 		}
 		c.JSON(http.StatusOK, result)
@@ -567,7 +580,7 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 	case "youtube":
 		result, err := youtubeLeaderboardDetailByID(id, limit)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			c.JSON(http.StatusOK, []interface{}{})
 			return
 		}
 		c.JSON(http.StatusOK, result)
@@ -575,7 +588,7 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 	case "jamendo":
 		result, err := jamendoLeaderboardDetailByID(id, limit)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			c.JSON(http.StatusOK, []interface{}{})
 			return
 		}
 		c.JSON(http.StatusOK, result)
