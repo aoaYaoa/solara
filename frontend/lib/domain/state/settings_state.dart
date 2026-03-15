@@ -6,6 +6,7 @@ class SettingsState {
   final String playbackQuality;
   final double volume;
   final String searchSource;
+  final String discoverSource; // 发现页独立音源
   final bool debugMode;
   final String themeMode; // 'system', 'light', 'dark'
   final String eqPreset;  // EQ preset id, default 'flat'
@@ -15,6 +16,7 @@ class SettingsState {
     required this.playbackQuality,
     required this.volume,
     required this.searchSource,
+    this.discoverSource = 'netease',
     required this.debugMode,
     required this.themeMode,
     required this.eqPreset,
@@ -25,6 +27,7 @@ class SettingsState {
     String? playbackQuality,
     double? volume,
     String? searchSource,
+    String? discoverSource,
     bool? debugMode,
     String? themeMode,
     String? eqPreset,
@@ -34,6 +37,7 @@ class SettingsState {
       playbackQuality: playbackQuality ?? this.playbackQuality,
       volume: volume ?? this.volume,
       searchSource: searchSource ?? this.searchSource,
+      discoverSource: discoverSource ?? this.discoverSource,
       debugMode: debugMode ?? this.debugMode,
       themeMode: themeMode ?? this.themeMode,
       eqPreset: eqPreset ?? this.eqPreset,
@@ -46,6 +50,7 @@ class SettingsState {
       playbackQuality: '320',
       volume: 1.0,
       searchSource: 'netease',
+      discoverSource: 'netease',
       debugMode: false,
       themeMode: 'system',
       eqPreset: 'flat',
@@ -73,6 +78,11 @@ class SettingsStateNotifier extends StateNotifier<SettingsState> {
 
   void setSearchSource(String source) {
     state = state.copyWith(searchSource: source);
+    persistence.saveSettings(state);
+  }
+
+  void setDiscoverSource(String source) {
+    state = state.copyWith(discoverSource: source);
     persistence.saveSettings(state);
   }
 

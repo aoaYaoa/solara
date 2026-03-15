@@ -89,6 +89,9 @@ class PersistentStateService {
     if (data['searchSource'] != null) {
       notifier.setSearchSource(data['searchSource'].toString());
     }
+    if (data['discoverSource'] != null) {
+      notifier.setDiscoverSource(data['discoverSource'].toString());
+    }
     if (data['debugMode'] != null) {
       notifier.setDebugMode(
         data['debugMode'] == true || data['debugMode'] == 'true',
@@ -111,6 +114,7 @@ class PersistentStateService {
       'playbackQuality': state.playbackQuality,
       'volume': state.volume,
       'searchSource': state.searchSource,
+      'discoverSource': state.discoverSource,
       'debugMode': state.debugMode,
       'themeMode': state.themeMode,
       'eqPreset': state.eqPreset,

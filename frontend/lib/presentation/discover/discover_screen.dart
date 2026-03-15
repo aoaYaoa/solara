@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/state/discover_state.dart';
 import '../../domain/models/discover.dart';
-import '../../services/image_headers.dart' show proxyImageUrl;
 import '../../domain/state/settings_state.dart';
 import '../../services/app_config.dart';
+import '../../services/image_headers.dart' show proxyImageUrl;
+import '../../data/providers.dart';
 import 'song_list_detail_screen.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
@@ -16,25 +16,90 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   final _scrollController = ScrollController();
-  bool _initialLoaded = false;
+  String _currentSource = '';
+  List<SongListItem> _songLists = [];
+  bool _loading = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_initialLoaded) {
-        _initialLoaded = true;
-        final source = ref.read(settingsStateProvider).searchSource;
-        ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
-      }
-      // 监听音源切换，切换时重新加载（切回已加载的音源则跳过）
-      ref.listenManual<SettingsState>(settingsStateProvider, (prev, next) {
-        if (prev?.searchSource != next.searchSource) {
-          ref.read(discoverStateProvider.notifier).ensureLoaded(source: next.searchSource);
-        }
-      });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final source = ref.read(settingsStateProvider).discoverSource;
+    if (source != _currentSource) {
+      _loadSource(source);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSource(String source) async {
+    if (!mounted) return;
+    setState(() {
+      _currentSource = source;
+      _songLists = [];
+      _page = 1;
+      _hasMore = true;
+      _error = null;
+      _loading = true;
+      _loadingMore = false;
     });
+    try {
+      final repo = ref.read(solaraRepositoryProvider);
+      final items = await repo.fetchSongList(source: source, page: 1);
+      if (!mounted || _currentSource != source) return;
+      setState(() {
+        _songLists = items;
+        _loading = false;
+        _hasMore = items.length >= 30;
+      });
+    } catch (e) {
+      if (!mounted || _currentSource != source) return;
+      setState(() {
+        _loading = false;
+        _error = '加载失败: $e';
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _loading) return;
+    final source = _currentSource;
+    setState(() => _loadingMore = true);
+    try {
+      final repo = ref.read(solaraRepositoryProvider);
+      final nextPage = _page + 1;
+      final items = await repo.fetchSongList(source: source, page: nextPage);
+      if (!mounted || _currentSource != source) return;
+      setState(() {
+        _songLists = [..._songLists, ...items];
+        _page = nextPage;
+        _loadingMore = false;
+        _hasMore = items.length >= 30;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
   }
 
   String _sourceLabel(String source) {
@@ -50,30 +115,21 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     }
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      final source = ref.read(settingsStateProvider).searchSource;
-      ref.read(discoverStateProvider.notifier).loadMoreSongLists(source: source);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(discoverStateProvider);
+    // 监听 source 变化，触发重新加载
+    ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
+      if (prev?.discoverSource != next.discoverSource) {
+        _loadSource(next.discoverSource);
+      }
+    });
+
     final settings = ref.watch(settingsStateProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final source = settings.discoverSource;
 
     return RefreshIndicator(
-      onRefresh:
-          () =>
-              ref.read(discoverStateProvider.notifier).loadAll(source: settings.searchSource),
+      onRefresh: () => _loadSource(source),
       child: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -86,14 +142,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: PopupMenuButton<String>(
                   onSelected: (value) {
-                    ref.read(settingsStateProvider.notifier).setSearchSource(value);
-                    ref.read(discoverStateProvider.notifier).loadAll(source: value);
+                    ref.read(settingsStateProvider.notifier).setDiscoverSource(value);
                   },
                   offset: const Offset(0, 42),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   itemBuilder: (_) => AppConfig.sources.map((s) {
-                    final isSelected = s == settings.searchSource;
-                    final colorScheme = Theme.of(context).colorScheme;
+                    final isSelected = s == source;
                     return PopupMenuItem(
                       value: s,
                       child: Row(
@@ -122,7 +176,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _sourceLabel(settings.searchSource),
+                          _sourceLabel(source),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -138,31 +192,24 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               ),
             ],
           ),
-          if (state.error != null)
+          if (_error != null)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  state.error!,
-                  style: TextStyle(color: colorScheme.error),
-                ),
+                padding: const EdgeInsets.all(16),
+                child: Text(_error!, style: TextStyle(color: colorScheme.error)),
               ),
             ),
-          // ── 精选歌单 ────────────────────────────────────
           SliverToBoxAdapter(
             child: _SectionTitle(title: '精选歌单', icon: Icons.queue_music_rounded),
           ),
-          if (state.loading)
+          if (_loading)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(32),
                 child: Center(child: CircularProgressIndicator()),
               ),
             )
-          else if (state.songLists.isEmpty)
+          else if (_songLists.isEmpty)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -173,22 +220,18 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               sliver: SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final item = state.songLists[index];
-                  return _SongListTile(item: item, source: settings.searchSource);
-                }, childCount: state.songLists.length),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _SongListTile(item: _songLists[index], source: source),
+                  childCount: _songLists.length,
+                ),
               ),
             ),
-          if (state.loadingMoreSongLists)
+          if (_loadingMore)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
                 ),
               ),
             ),
@@ -199,7 +242,6 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   }
 }
 
-/// Section title with a decorative icon.
 class _SectionTitle extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -223,9 +265,7 @@ class _SectionTitle extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -236,7 +276,6 @@ class _SectionTitle extends StatelessWidget {
 class _SongListTile extends StatelessWidget {
   final SongListItem item;
   final String source;
-
   const _SongListTile({required this.item, required this.source});
 
   @override
@@ -246,23 +285,20 @@ class _SongListTile extends StatelessWidget {
       elevation: 0.5,
       shadowColor: colorScheme.shadow.withValues(alpha: 0.2),
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child:
-              item.coverUrl != null
-                  ? Image.network(
-                    proxyImageUrl(item.coverUrl!),
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _placeholder(colorScheme),
-                  )
-                  : _placeholder(colorScheme),
+          child: item.coverUrl != null
+              ? Image.network(
+                  proxyImageUrl(item.coverUrl!),
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _placeholder(colorScheme),
+                )
+              : _placeholder(colorScheme),
         ),
         title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(
