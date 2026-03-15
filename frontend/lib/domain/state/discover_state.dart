@@ -61,9 +61,13 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
   /// 如果当前 source 数据已加载则跳过，避免每次切换 tab 重新请求
   Future<void> ensureLoaded({required String source}) async {
     // 已加载完成且是同一 source 则跳过
-    if (state.loadedSource == source && !state.loading && state.leaderboards.isNotEmpty) return;
+    if (state.loadedSource == source && !state.loading && state.leaderboards.isNotEmpty) {
+      return;
+    }
     // 正在加载同一 source 则等待，不重复发请求
-    if (state.loading && state.loadedSource == source) return;
+    if (state.loading && state.loadedSource == source) {
+      return;
+    }
     await loadAll(source: source);
   }
 
@@ -97,6 +101,11 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(loading: false, error: e.toString());
+    } finally {
+      // 确保 loading 始终被重置，防止 spinner 卡死
+      if (mounted && state.loading) {
+        state = state.copyWith(loading: false);
+      }
     }
   }
 

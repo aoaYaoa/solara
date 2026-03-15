@@ -32,9 +32,12 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final source = ref.read(settingsStateProvider).searchSource;
-      ref.read(searchStateProvider.notifier).setSource(source);
-      ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
+      Future(() {
+        if (!mounted) return;
+        final source = ref.read(settingsStateProvider).searchSource;
+        ref.read(searchStateProvider.notifier).setSource(source);
+        ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
+      });
     });
   }
 
