@@ -1557,67 +1557,30 @@ func execShell(cmd string) (string, error) {
 	return string(out), nil
 }
 
-var youtubeCategories = []struct{ id, name, keyword string }{
-	{"yt_pop", "流行", "pop music"},
-	{"yt_electronic", "电子", "electronic music"},
-	{"yt_jazz", "爵士", "jazz music"},
-	{"yt_classical", "古典", "classical music"},
-	{"yt_lofi", "Lo-Fi", "lofi hip hop"},
-	{"yt_rock", "摇滚", "rock music"},
-	{"yt_kpop", "K-Pop", "kpop"},
-	{"yt_rnb", "R&B", "rnb music"},
-}
-
-// youtubeFirstPic 搜索关键词返回第一个结果的封面
-func youtubeFirstPic(keyword string) string {
-	results, err := youtubeSearch(keyword, 1)
-	if err != nil || len(results) == 0 {
-		return ""
-	}
-	pic, _ := results[0]["pic_url"].(string)
-	return pic
-}
-
 func youtubeLeaderboardList() ([]map[string]interface{}, error) {
-	type coverResult struct {
-		index int
-		url   string
+	// YouTube 不按分类，只有一个「热门」入口，封面取第一首歌
+	results, _ := youtubeSearch("top music hits 2025", 1)
+	coverUrl := ""
+	if len(results) > 0 {
+		coverUrl, _ = results[0]["pic_url"].(string)
 	}
-	covers := make([]string, len(youtubeCategories))
-	ch := make(chan coverResult, len(youtubeCategories))
-	for i, cat := range youtubeCategories {
-		go func(idx int, keyword string) {
-			ch <- coverResult{idx, youtubeFirstPic(keyword)}
-		}(i, cat.keyword)
-	}
-	for range youtubeCategories {
-		r := <-ch
-		covers[r.index] = r.url
-	}
-	result := make([]map[string]interface{}, 0, len(youtubeCategories))
-	for i, cat := range youtubeCategories {
-		result = append(result, map[string]interface{}{
-			"id":              cat.id,
-			"name":            cat.name,
-			"coverUrl":        covers[i],
+	return []map[string]interface{}{
+		{
+			"id":              "yt_hot",
+			"name":            "热门音乐",
+			"coverUrl":        coverUrl,
 			"updateFrequency": "",
 			"source":          "youtube",
-		})
-	}
-	return result, nil
+		},
+	}, nil
 }
 
 func youtubeLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
-	return youtubeLeaderboardDetailByID("yt_pop", limit)
+	return youtubeLeaderboardDetailByID("yt_hot", limit)
 }
 
 func youtubeLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
-	for _, cat := range youtubeCategories {
-		if cat.id == id {
-			return youtubeSearch(cat.keyword, limit)
-		}
-	}
-	return youtubeSearch("pop music", limit)
+	return youtubeSearch("top music hits 2025", limit)
 }
 // ── Cookie 管理 ────────────────────────────────────────────────────
 
