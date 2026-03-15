@@ -123,6 +123,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
   Widget build(BuildContext context) {
     ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
       if (prev?.searchSource != next.searchSource) {
+        ref.read(searchStateProvider.notifier).setSource(next.searchSource);
         ref.read(discoverStateProvider.notifier).loadAll(source: next.searchSource);
       }
     });
