@@ -182,6 +182,9 @@ class PlayerController extends StateNotifier<PlayerState> {
       if (song.source == 'local') {
         // 本地文件直接用 file:// URI
         url = song.urlId.startsWith('file://') ? song.urlId : 'file://${song.urlId}';
+      } else if (song.source == 'jamendo' && song.urlId.startsWith('http')) {
+        // Jamendo urlId 直接是 MP3 URL
+        url = song.urlId;
       } else {
         url = await repository.fetchSongUrl(
           songId: song.id,
