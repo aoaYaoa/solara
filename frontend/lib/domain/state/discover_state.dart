@@ -65,11 +65,9 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
   }
 
   Future<void> loadAll({String source = 'kw'}) async {
-    state = state.copyWith(
+    state = DiscoverState(
       loading: true,
-      songListPage: 1,
-      hasMoreSongLists: true,
-      clearError: true,
+      loadedSource: source,
     );
     try {
       final repo = _ref.read(solaraRepositoryProvider);

@@ -644,11 +644,19 @@ func (h *SolaraHandler) DiscoverSongList(c *gin.Context) {
 		// YouTube/Jamendo 无歌单概念，返回空
 		c.JSON(http.StatusOK, []interface{}{})
 	default: // netease
-		apiURL := "https://music.163.com/api/playlist/list?cat=%E5%85%A8%E9%83%A8&order=hot&offset=0&total=true&limit=30"
+		limitStr := c.DefaultQuery("limit", "30")
+		limit := 30
+		fmt.Sscanf(limitStr, "%d", &limit)
+		pageStr := c.DefaultQuery("page", "1")
+		page := 1
+		fmt.Sscanf(pageStr, "%d", &page)
+		offset := (page - 1) * limit
 		tag := c.DefaultQuery("tag", "")
+		cat := "%E5%85%A8%E9%83%A8"
 		if tag != "" {
-			apiURL = fmt.Sprintf("https://music.163.com/api/playlist/list?cat=%s&order=hot&offset=0&total=true&limit=30", url.QueryEscape(tag))
+			cat = url.QueryEscape(tag)
 		}
+		apiURL := fmt.Sprintf("https://music.163.com/api/playlist/list?cat=%s&order=hot&offset=%d&total=true&limit=%d", cat, offset, limit)
 		data, err := fetchNetease(apiURL)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
