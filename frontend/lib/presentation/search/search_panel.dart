@@ -32,12 +32,9 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Future(() {
-        if (!mounted) return;
-        final source = ref.read(settingsStateProvider).searchSource;
-        ref.read(searchStateProvider.notifier).setSource(source);
-        ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
-      });
+      final source = ref.read(settingsStateProvider).searchSource;
+      ref.read(searchStateProvider.notifier).setSource(source);
+      ref.read(discoverStateProvider.notifier).ensureLoaded(source: source);
     });
   }
 
@@ -125,8 +122,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
   @override
   Widget build(BuildContext context) {
     ref.listen<SettingsState>(settingsStateProvider, (prev, next) {
-      if (prev != null && prev.searchSource != next.searchSource) {
-        ref.read(searchStateProvider.notifier).setSource(next.searchSource);
+      if (prev?.searchSource != next.searchSource) {
         ref.read(discoverStateProvider.notifier).loadAll(source: next.searchSource);
       }
     });
@@ -404,7 +400,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
 
           // ── 排行榜 ──────────────────────────────────
           _SectionTitle(title: '音乐馆', icon: Icons.bar_chart_rounded),
-          if (discoverState.loading && discoverState.leaderboards.isEmpty)
+          if (discoverState.loading)
             const SizedBox(
               height: 140,
               child: Center(child: CircularProgressIndicator()),
@@ -474,7 +470,15 @@ class _LeaderboardCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _placeholder(colorScheme),
+            item.coverUrl != null
+                ? Image.network(
+                    proxyImageUrl(item.coverUrl!),
+                    fit: BoxFit.cover,
+                    cacheWidth: 200,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => _placeholder(colorScheme),
+                  )
+                : _placeholder(colorScheme),
             Positioned(
               left: 0,
               right: 0,

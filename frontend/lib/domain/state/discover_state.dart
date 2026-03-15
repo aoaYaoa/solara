@@ -60,52 +60,33 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
 
   /// 如果当前 source 数据已加载则跳过，避免每次切换 tab 重新请求
   Future<void> ensureLoaded({required String source}) async {
-    // 已加载完成且是同一 source 则跳过
-    if (state.loadedSource == source && !state.loading && state.leaderboards.isNotEmpty) {
-      return;
-    }
-    // 正在加载同一 source 则等待，不重复发请求
-    if (state.loading && state.loadedSource == source) {
-      return;
-    }
+    if (state.loadedSource == source || state.loading) return;
     await loadAll(source: source);
   }
 
   Future<void> loadAll({String source = 'netease'}) async {
-    state = DiscoverState(loading: true, loadedSource: source);
+    state = DiscoverState(
+      loading: true,
+      loadedSource: source,
+    );
     try {
       final repo = _ref.read(solaraRepositoryProvider);
-      List<LeaderboardItem> leaderboards = [];
-      List<SongListItem> songLists = [];
-      try {
-        leaderboards = await repo.fetchLeaderboardList(source: source)
-            .timeout(const Duration(seconds: 15));
-      } catch (_) {}
-      if (!mounted) return;
+      final results = await Future.wait([
+        repo.fetchLeaderboardList(source: source),
+        repo.fetchSongList(source: source, page: 1),
+      ]);
+      final leaderboards = results[0] as List<LeaderboardItem>;
+      final songLists = results[1] as List<SongListItem>;
       state = state.copyWith(
         leaderboards: leaderboards,
-        loading: false,
-        loadedSource: source,
-        clearError: true,
-      );
-      try {
-        songLists = await repo.fetchSongList(source: source, page: 1)
-            .timeout(const Duration(seconds: 15));
-      } catch (_) {}
-      if (!mounted) return;
-      state = state.copyWith(
         songLists: songLists,
+        loading: false,
         songListPage: 1,
         hasMoreSongLists: songLists.length >= 30,
+        loadedSource: source,
       );
     } catch (e) {
-      if (!mounted) return;
-      state = state.copyWith(loading: false, error: e.toString());
-    } finally {
-      // 确保 loading 始终被重置，防止 spinner 卡死
-      if (mounted && state.loading) {
-        state = state.copyWith(loading: false);
-      }
+      state = state.copyWith(loading: false, error: '加载失败: $e');
     }
   }
 
