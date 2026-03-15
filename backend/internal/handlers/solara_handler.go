@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -1301,78 +1303,31 @@ func youtubeParseListItem(renderer map[string]interface{}) map[string]interface{
 }
 
 func youtubeGetAudioUrl(videoId string) (string, error) {
-	// 使用 iOS 客户端获取未加密的音频 URL
-	apiURL := "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
-	body := map[string]interface{}{
-		"videoId": videoId,
-		"context": youtubeIOSContext,
+	// 用 yt-dlp + cookies + node.js 获取音频 URL
+	cookiesPath := "/app/yt_cookies.txt"
+	cmd := fmt.Sprintf(
+		"yt-dlp --js-runtimes node --cookies %s -f bestaudio --get-url 'https://www.youtube.com/watch?v=%s' 2>/dev/null",
+		cookiesPath, videoId,
+	)
+	out, err := execShell(cmd)
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp failed: %w", err)
 	}
-	payload, _ := json.Marshal(body)
-	client := &http.Client{Timeout: 15 * time.Second}
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(payload)))
+	u := strings.TrimSpace(out)
+	if u == "" {
+		return "", fmt.Errorf("yt-dlp returned empty url")
+	}
+	return u, nil
+}
+
+func execShell(cmd string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	var data map[string]interface{}
-	dec := json.NewDecoder(resp.Body)
-	dec.UseNumber()
-	if err := dec.Decode(&data); err != nil {
-		return "", err
-	}
-	if err != nil {
-		return "", err
-	}
-	streaming, _ := data["streamingData"].(map[string]interface{})
-	if streaming == nil {
-		return "", fmt.Errorf("no streamingData")
-	}
-	// 优先 adaptiveFormats 中的音频流（无视频）
-	if adaptive, ok := streaming["adaptiveFormats"].([]interface{}); ok {
-		bestBitrate := 0
-		bestURL := ""
-		for _, item := range adaptive {
-			m, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			mimeType, _ := m["mimeType"].(string)
-			if !strings.HasPrefix(mimeType, "audio/") {
-				continue
-			}
-			// 只取无签名的 url（有 signatureCipher 的需要解密）
-			u, _ := m["url"].(string)
-			if u == "" {
-				continue
-			}
-			var br int
-			if bitrateNum, ok := m["bitrate"].(json.Number); ok {
-				fmt.Sscanf(bitrateNum.String(), "%d", &br)
-			}
-			if br > bestBitrate {
-				bestBitrate = br
-				bestURL = u
-			}
-		}
-		if bestURL != "" {
-			return bestURL, nil
-		}
-	}
-	// fallback: formats
-	if formats, ok := streaming["formats"].([]interface{}); ok && len(formats) > 0 {
-		if m, ok := formats[0].(map[string]interface{}); ok {
-			if u, ok := m["url"].(string); ok && u != "" {
-				return u, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("no unsigned audio url found (video may require signature decryption)")
+	return string(out), nil
 }
 
 var youtubeCategories = []struct{ id, name, keyword string }{
