@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -1327,15 +1328,26 @@ func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interf
 	if err != nil {
 		return nil, err
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
+	// 强制 HTTP/1.1，避免 YouTube Music API 的 HTTP/2 header 大小限制
+	transport := &http.Transport{
+		TLSNextProto:       make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+		DisableCompression: true,
+	}
+	client := &http.Client{Timeout: 15 * time.Second, Transport: transport}
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(string(payload)))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Origin", "https://music.youtube.com")
 	req.Header.Set("Referer", "https://music.youtube.com/")
+	req.Header.Set("X-Goog-Api-Key", "AIzaSyC9XL3ZjWddXya6X74dJoCTL-NKNELL6Mg")
+	req.Header.Set("X-YouTube-Client-Name", "67")
+	req.Header.Set("X-YouTube-Client-Version", "1.20240101.00.00")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Encoding", "identity")
 	if cookie := loadYouTubeCookie(); cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
@@ -1354,14 +1366,49 @@ func fetchYouTube(apiURL string, body map[string]interface{}) (map[string]interf
 }
 
 func youtubeSearch(keyword string, limit int) ([]map[string]interface{}, error) {
-	apiURL := "https://music.youtube.com/youtubei/v1/search?prettyPrint=false"
-	data, err := fetchYouTube(apiURL, map[string]interface{}{"query": keyword})
-	if err != nil {
-		return nil, err
+	// 用 yt-dlp 搜索，避免 InnerTube API 的 TLS 指纹检测
+	cookiesPath := "/app/yt_cookies.txt"
+	cookiesArg := ""
+	if _, err := os.Stat(cookiesPath); err == nil {
+		cookiesArg = fmt.Sprintf("--cookies %s ", cookiesPath)
 	}
-	// 递归遍历找 musicResponsiveListItemRenderer
-	result := make([]map[string]interface{}, 0)
-	youtubeExtractSongs(data, &result, limit)
+	cmd := fmt.Sprintf(
+		"yt-dlp --dump-json --flat-playlist --no-warnings %s'ytsearch%d:%s' 2>/dev/null",
+		cookiesArg, limit, strings.ReplaceAll(keyword, "'", ""),
+	)
+	out, err := execShell(cmd)
+	if err != nil || strings.TrimSpace(out) == "" {
+		return []map[string]interface{}{}, nil
+	}
+	result := make([]map[string]interface{}, 0, limit)
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			continue
+		}
+		videoId, _ := m["id"].(string)
+		if videoId == "" {
+			continue
+		}
+		title, _ := m["title"].(string)
+		artist, _ := m["channel"].(string)
+		picUrl := fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoId)
+		result = append(result, map[string]interface{}{
+			"id":       videoId,
+			"name":     title,
+			"artist":   artist,
+			"album":    "YouTube Music",
+			"pic_id":   "",
+			"pic_url":  picUrl,
+			"url_id":   videoId,
+			"lyric_id": "",
+			"source":   "youtube",
+		})
+	}
 	return result, nil
 }
 
