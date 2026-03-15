@@ -593,6 +593,17 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusOK, result)
+		// 后台预热前5首歌的音频URL缓存
+		go func() {
+			for i, song := range result {
+				if i >= 5 {
+					break
+				}
+				if vid, ok := song["url_id"].(string); ok && vid != "" {
+					youtubeGetAudioUrl(vid) //nolint:errcheck
+				}
+			}
+		}()
 		return
 	case "jamendo":
 		result, err := jamendoLeaderboardDetailByID(id, limit)
