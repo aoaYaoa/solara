@@ -542,10 +542,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     dynamic playerState,
     Color primaryColor,
   ) {
-    final discSize = math.min(280.0, MediaQuery.of(context).size.width * 0.65);
+    final availH = MediaQuery.of(context).size.height * 0.4;
+    final discSize = math.min(280.0, math.min(MediaQuery.of(context).size.width * 0.65, availH));
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           ScaleTransition(
             scale: _scaleAnimation,
