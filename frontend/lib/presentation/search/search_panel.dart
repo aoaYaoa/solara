@@ -510,18 +510,34 @@ class _LeaderboardCard extends StatelessWidget {
     );
   }
 
+  static IconData _pickIcon(int i) {
+    const icons = [
+      Icons.bar_chart_rounded,
+      Icons.headphones_rounded,
+      Icons.album_rounded,
+      Icons.piano_rounded,
+      Icons.queue_music_rounded,
+      Icons.mic_rounded,
+      Icons.radio_rounded,
+      Icons.library_music_rounded,
+    ];
+    return icons[i % icons.length];
+  }
+
   Widget _placeholder(ColorScheme colorScheme) {
-    // 根据名字生成固定颜色，让每张卡片有不同渐变
-    final hash = item.name.codeUnits.fold(0, (a, b) => a + b);
-    final colors = [
+    // 用 id 做 hash 保证不同榜单颜色不同
+    final hash = item.id.codeUnits.fold(0, (a, b) => a * 31 + b);
+    final gradients = [
       [const Color(0xFF6C63FF), const Color(0xFF3B3A8F)],
       [const Color(0xFFFF6584), const Color(0xFF8F1A35)],
       [const Color(0xFF43C6AC), const Color(0xFF1A6B58)],
-      [const Color(0xFFFFB347), const Color(0xFF8F5B00)],
+      [const Color(0xFFFFB347), const Color(0xFF7A4A00)],
       [const Color(0xFF667EEA), const Color(0xFF2D3A8F)],
       [const Color(0xFFF857A6), const Color(0xFF8F1A56)],
+      [const Color(0xFF4FACFE), const Color(0xFF1A5A8F)],
+      [const Color(0xFF43E97B), const Color(0xFF1A6B3A)],
     ];
-    final pair = colors[hash % colors.length];
+    final pair = gradients[hash.abs() % gradients.length];
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -531,7 +547,9 @@ class _LeaderboardCard extends StatelessWidget {
           colors: pair,
         ),
       ),
-      child: const Icon(Icons.music_note_rounded, size: 36, color: Colors.white54),
+      child: Center(
+        child: Icon(_pickIcon(hash.abs() % 8), size: 32, color: Colors.white38),
+      ),
     );
   }
 }
