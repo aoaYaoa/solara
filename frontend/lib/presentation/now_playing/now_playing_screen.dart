@@ -214,6 +214,29 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               _InfoRow(label: '艺术家', value: song.artist),
               _InfoRow(label: '专辑', value: song.album),
               _InfoRow(label: '来源', value: _sourceLabel(song.source)),
+              if (song.mvId != null && (song.mvId as String).isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.video_library_outlined),
+                    label: const Text('播放 MV'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MvPlayerScreen(
+                            mvId: song.mvId as String,
+                            source: song.source as String,
+                            songName: song.name as String,
+                            artist: song.artist as String,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -680,22 +703,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 color: Colors.white.withValues(alpha: 0.7)),
             onPressed: () => _showSongInfo(context, song),
           ),
-          if (song?.mvId != null && (song!.mvId as String).isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.video_library_outlined,
-                  color: Colors.white.withValues(alpha: 0.7)),
-              tooltip: '播放 MV',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => MvPlayerScreen(
-                    mvId: song.mvId as String,
-                    source: song.source as String,
-                    songName: song.name as String,
-                    artist: song.artist as String,
-                  ),
-                ),
-              ),
-            ),
           GestureDetector(
             onTap: () => _showQualityPicker(context, quality, settingsNotifier),
             child: Container(
