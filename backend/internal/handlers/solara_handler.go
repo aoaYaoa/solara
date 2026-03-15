@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"net"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -443,7 +444,11 @@ func (h *SolaraHandler) proxyRequest(c *gin.Context, targetURL string, extraHead
 		req.Header.Set(k, v)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	// 流媒体代理只设置连接超时，不设整体超时（否则大文件传输会被截断）
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{Timeout: 15 * time.Second}).DialContext,
+	}
+	client := &http.Client{Transport: transport}
 	resp, err := client.Do(req)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "upstream request failed"})
