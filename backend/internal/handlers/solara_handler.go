@@ -552,9 +552,10 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 	limit := 30
 	fmt.Sscanf(limitStr, "%d", &limit)
 
+	id := c.Param("id")
 	switch source {
 	case "bilibili":
-		result, err := bilibiliLeaderboardDetail(limit)
+		result, err := bilibiliLeaderboardDetailByID(id, limit)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -562,7 +563,7 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 		c.JSON(http.StatusOK, result)
 		return
 	case "youtube":
-		result, err := youtubeLeaderboardDetail(limit)
+		result, err := youtubeLeaderboardDetailByID(id, limit)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -570,7 +571,7 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 		c.JSON(http.StatusOK, result)
 		return
 	case "jamendo":
-		result, err := jamendoLeaderboardDetail(limit)
+		result, err := jamendoLeaderboardDetailByID(id, limit)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -578,8 +579,6 @@ func (h *SolaraHandler) DiscoverLeaderboardDetail(c *gin.Context) {
 		c.JSON(http.StatusOK, result)
 		return
 	}
-
-	id := c.Param("id")
 
 	apiURL := fmt.Sprintf("https://music.163.com/api/v3/playlist/detail?id=%s&n=%d", url.QueryEscape(id), limit)
 	data, err := fetchNetease(apiURL)
@@ -918,38 +917,28 @@ func (h *SolaraHandler) BilibiliPlayUrl(bvid string) (string, error) {
 	return "", fmt.Errorf("no audio url found")
 }
 
+var bilibiliCategories = []struct{ id, name, keyword string }{
+	{"bili_pop", "流行", "流行音乐"},
+	{"bili_electronic", "电子", "电子音乐"},
+	{"bili_rock", "摇滚", "摇滚乐"},
+	{"bili_folk", "民谣", "民谣"},
+	{"bili_ancient", "古风", "古风音乐"},
+	{"bili_cover", "翻唱", "翻唱"},
+	{"bili_jazz", "爵士", "爵士乐"},
+	{"bili_classical", "古典", "古典音乐"},
+	{"bili_ranking", "音乐区周榜", ""},
+}
+
 func bilibiliLeaderboardList() ([]map[string]interface{}, error) {
-	// B站音乐区周榜 rid=3
-	apiURL := "https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all"
-	data, err := fetchBilibili(apiURL)
-	if err != nil {
-		return nil, err
-	}
-	dataMap, _ := data["data"].(map[string]interface{})
-	if dataMap == nil {
-		return []map[string]interface{}{}, nil
-	}
-	list, _ := dataMap["list"].([]interface{})
-	// 只返回一个「音乐区周榜」条目，内容是视频列表
-	result := []map[string]interface{}{
-		{
-			"id":              "bilibili_music_ranking",
-			"name":            "音乐区周榜",
+	result := make([]map[string]interface{}, 0, len(bilibiliCategories))
+	for _, cat := range bilibiliCategories {
+		result = append(result, map[string]interface{}{
+			"id":              cat.id,
+			"name":            cat.name,
 			"coverUrl":        "",
-			"updateFrequency": "每周更新",
+			"updateFrequency": "",
 			"source":          "bilibili",
-			"_list":           list, // 内嵌，供 detail 接口使用
-		},
-	}
-	if len(list) > 0 {
-		if first, ok := list[0].(map[string]interface{}); ok {
-			if pic, ok := first["pic"].(string); ok && pic != "" {
-				if !strings.HasPrefix(pic, "http") {
-					pic = "https:" + pic
-				}
-				result[0]["coverUrl"] = pic
-			}
-		}
+		})
 	}
 	return result, nil
 }
@@ -979,49 +968,71 @@ func bilibiliSongList() ([]map[string]interface{}, error) {
 }
 
 func bilibiliLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
-	apiURL := "https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all"
-	data, err := fetchBilibili(apiURL)
-	if err != nil {
-		return nil, err
-	}
-	dataMap, _ := data["data"].(map[string]interface{})
-	if dataMap == nil {
-		return []map[string]interface{}{}, nil
-	}
-	list, _ := dataMap["list"].([]interface{})
-	result := make([]map[string]interface{}, 0)
-	for i, item := range list {
-		if i >= limit {
+	return bilibiliLeaderboardDetailByID("bili_ranking", limit)
+}
+
+func bilibiliLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
+	// 找对应分类的关键词
+	keyword := ""
+	for _, cat := range bilibiliCategories {
+		if cat.id == id {
+			keyword = cat.keyword
 			break
 		}
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		bvid, _ := m["bvid"].(string)
-		title, _ := m["title"].(string)
-		owner, _ := m["owner"].(map[string]interface{})
-		author := ""
-		if owner != nil {
-			author, _ = owner["name"].(string)
-		}
-		pic, _ := m["pic"].(string)
-		if !strings.HasPrefix(pic, "http") {
-			pic = "https:" + pic
-		}
-		result = append(result, map[string]interface{}{
-			"id":       bvid,
-			"name":     title,
-			"artist":   author,
-			"album":    "Bilibili音乐区",
-			"pic_id":   "",
-			"pic_url":  pic,
-			"url_id":   bvid,
-			"lyric_id": "",
-			"source":   "bilibili",
-		})
 	}
-	return result, nil
+	// 无关键词或周榜，用排行榜 API
+	if keyword == "" {
+		apiURL := "https://api.bilibili.com/x/web-interface/ranking/v2?rid=3&type=all"
+		data, err := fetchBilibili(apiURL)
+		if err != nil {
+			return nil, err
+		}
+		dataMap, _ := data["data"].(map[string]interface{})
+		if dataMap == nil {
+			return []map[string]interface{}{}, nil
+		}
+		list, _ := dataMap["list"].([]interface{})
+		result := make([]map[string]interface{}, 0)
+		for i, item := range list {
+			if i >= limit {
+				break
+			}
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			bvid, _ := m["bvid"].(string)
+			title, _ := m["title"].(string)
+			owner, _ := m["owner"].(map[string]interface{})
+			author := ""
+			if owner != nil {
+				author, _ = owner["name"].(string)
+			}
+			pic, _ := m["pic"].(string)
+			if !strings.HasPrefix(pic, "http") {
+				pic = "https:" + pic
+			}
+			result = append(result, map[string]interface{}{
+				"id":       bvid,
+				"name":     title,
+				"artist":   author,
+				"album":    "Bilibili音乐区",
+				"pic_id":   "",
+				"pic_url":  pic,
+				"url_id":   bvid,
+				"lyric_id": "",
+				"source":   "bilibili",
+			})
+		}
+		return result, nil
+	}
+	// 用关键词搜索
+	return h_bilibiliSearchStatic(keyword, limit)
+}
+
+func h_bilibiliSearchStatic(keyword string, limit int) ([]map[string]interface{}, error) {
+	h := &SolaraHandler{}
+	return h.BilibiliSearch(keyword, 1, limit)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1059,31 +1070,17 @@ func jamendoSearch(keyword string, limit int) ([]map[string]interface{}, error) 
 }
 
 func jamendoLeaderboardList() ([]map[string]interface{}, error) {
-	cid := jamendoClientID()
-	coverUrl := ""
-	if cid != "" {
-		// 取第一首热门曲目的封面作为列表封面
-		apiURL := fmt.Sprintf(
-			"https://api.jamendo.com/v3.0/tracks?client_id=%s&order=popularity_total&format=json&limit=1",
-			cid,
-		)
-		if data, err := fetchJamendo(apiURL); err == nil {
-			if results, ok := data["results"].([]interface{}); ok && len(results) > 0 {
-				if m, ok := results[0].(map[string]interface{}); ok {
-					coverUrl, _ = m["image"].(string)
-				}
-			}
-		}
-	}
-	return []map[string]interface{}{
-		{
-			"id":              "jamendo_popular",
-			"name":            "热门音乐",
-			"coverUrl":        coverUrl,
-			"updateFrequency": "实时更新",
+	result := make([]map[string]interface{}, 0, len(jamendoCategories))
+	for _, cat := range jamendoCategories {
+		result = append(result, map[string]interface{}{
+			"id":              cat.id,
+			"name":            cat.name,
+			"coverUrl":        "",
+			"updateFrequency": "",
 			"source":          "jamendo",
-		},
-	}, nil
+		})
+	}
+	return result, nil
 }
 
 func jamendoParseTracks(apiURL string) ([]map[string]interface{}, error) {
@@ -1119,14 +1116,36 @@ func jamendoParseTracks(apiURL string) ([]map[string]interface{}, error) {
 	return out, nil
 }
 
+var jamendoCategories = []struct{ id, name, tag string }{
+	{"jam_pop", "流行", "pop"},
+	{"jam_electronic", "电子", "electronic"},
+	{"jam_rock", "摇滚", "rock"},
+	{"jam_jazz", "爵士", "jazz"},
+	{"jam_classical", "古典", "classical"},
+	{"jam_ambient", "氛围", "ambient"},
+	{"jam_folk", "民谣", "folk"},
+	{"jam_hiphop", "嘻哈", "hiphop"},
+}
+
 func jamendoLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
+	return jamendoLeaderboardDetailByID("jam_pop", limit)
+}
+
+func jamendoLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
 	cid := jamendoClientID()
 	if cid == "" {
 		return nil, fmt.Errorf("JAMENDO_CLIENT_ID not configured")
 	}
+	tag := "pop"
+	for _, cat := range jamendoCategories {
+		if cat.id == id {
+			tag = cat.tag
+			break
+		}
+	}
 	apiURL := fmt.Sprintf(
-		"https://api.jamendo.com/v3.0/tracks?client_id=%s&order=popularity_total&format=json&limit=%d",
-		cid, limit,
+		"https://api.jamendo.com/v3.0/tracks?client_id=%s&tags=%s&order=popularity_total&format=json&limit=%d",
+		cid, url.QueryEscape(tag), limit,
 	)
 	return jamendoParseTracks(apiURL)
 }
@@ -1356,19 +1375,40 @@ func youtubeGetAudioUrl(videoId string) (string, error) {
 	return "", fmt.Errorf("no unsigned audio url found (video may require signature decryption)")
 }
 
+var youtubeCategories = []struct{ id, name, keyword string }{
+	{"yt_pop", "流行", "pop music"},
+	{"yt_electronic", "电子", "electronic music"},
+	{"yt_jazz", "爵士", "jazz music"},
+	{"yt_classical", "古典", "classical music"},
+	{"yt_lofi", "Lo-Fi", "lofi hip hop"},
+	{"yt_rock", "摇滚", "rock music"},
+	{"yt_kpop", "K-Pop", "kpop"},
+	{"yt_rnb", "R&B", "rnb music"},
+}
+
 func youtubeLeaderboardList() ([]map[string]interface{}, error) {
-	return []map[string]interface{}{
-		{
-			"id":              "youtube_charts",
-			"name":            "全球音乐排行",
-			"coverUrl":        "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
-			"updateFrequency": "每日更新",
+	result := make([]map[string]interface{}, 0, len(youtubeCategories))
+	for _, cat := range youtubeCategories {
+		result = append(result, map[string]interface{}{
+			"id":              cat.id,
+			"name":            cat.name,
+			"coverUrl":        "",
+			"updateFrequency": "",
 			"source":          "youtube",
-		},
-	}, nil
+		})
+	}
+	return result, nil
 }
 
 func youtubeLeaderboardDetail(limit int) ([]map[string]interface{}, error) {
-	// 用搜索热门歌曲作为排行榜内容
-	return youtubeSearch("top hits music 2024", limit)
+	return youtubeLeaderboardDetailByID("yt_pop", limit)
+}
+
+func youtubeLeaderboardDetailByID(id string, limit int) ([]map[string]interface{}, error) {
+	for _, cat := range youtubeCategories {
+		if cat.id == id {
+			return youtubeSearch(cat.keyword, limit)
+		}
+	}
+	return youtubeSearch("pop music", limit)
 }
