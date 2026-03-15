@@ -9,6 +9,7 @@ import '../services/eq_service.dart';
 import '../services/player_controller.dart';
 import '../services/theme_controller.dart';
 import '../services/providers.dart';
+import '../data/providers.dart';
 
 class SolaraApp extends ConsumerStatefulWidget {
   const SolaraApp({super.key});
@@ -20,6 +21,7 @@ class SolaraApp extends ConsumerStatefulWidget {
 class _SolaraAppState extends ConsumerState<SolaraApp> {
   bool _syncInitialized = false;
   bool _sessionRestored = false;
+  bool _cookieChecked = false;
 
   @override
   void initState() {
@@ -45,6 +47,41 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
     });
   }
 
+  Future<void> _checkCookieExpiry() async {
+    if (!mounted) return;
+    try {
+      final svc = ref.read(cookieServiceProvider);
+      final status = await svc.fetchStatus();
+      if (!mounted) return;
+      final warnings = <String>[];
+      for (final entry in status.entries) {
+        final s = entry.value;
+        if (!s.exists) continue;
+        final days = s.daysUntilExpiry;
+        if (s.isExpired) {
+          warnings.add('${entry.key == 'youtube' ? 'YouTube' : 'B站'} Cookie 已过期，请重新上传');
+        } else if (days != null && days <= 1) {
+          warnings.add('${entry.key == 'youtube' ? 'YouTube' : 'B站'} Cookie 将在 1 天内过期，请及时更新');
+        }
+      }
+      if (warnings.isNotEmpty && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Cookie 即将过期'),
+            content: Text(warnings.join('\n')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('知道了'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
   static ThemeMode _resolveThemeMode(String mode) {
     switch (mode) {
       case 'light':
@@ -65,6 +102,10 @@ class _SolaraAppState extends ConsumerState<SolaraApp> {
     if (auth.isAuthed && !_syncInitialized) {
       _syncInitialized = true;
       Future.microtask(() => ref.read(syncControllerProvider).initialize());
+    }
+    if (auth.isAuthed && _sessionRestored && !_cookieChecked) {
+      _cookieChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkCookieExpiry());
     }
 
     Widget home;

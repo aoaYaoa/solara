@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/state/settings_state.dart';
 import '../../services/player_controller.dart';
+import '../../services/cookie_service.dart';
+import '../../data/providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -100,6 +102,12 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
+
+                  // ── Cookie 管理 ────────────────────────────
+                  _SectionLabel(title: 'Cookie 管理'),
+                  const SizedBox(height: 8),
+                  const _CookieSection(),
                   const SizedBox(height: 20),
 
                   // ── 开发者 ──────────────────────────────────
@@ -569,5 +577,93 @@ class _SettingsTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+// ── Cookie 管理 ──────────────────────────────────────────
+class _CookieSection extends ConsumerStatefulWidget {
+  const _CookieSection();
+
+  @override
+  ConsumerState<_CookieSection> createState() => _CookieSectionState();
+}
+
+class _CookieSectionState extends ConsumerState<_CookieSection> {
+  Map<String, CookieStatus> _status = {};
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStatus();
+  }
+
+  Future<void> _fetchStatus() async {
+    try {
+      final svc = ref.read(cookieServiceProvider);
+      final s = await svc.fetchStatus();
+      if (mounted) setState(() => _status = s);
+    } catch (_) {}
+  }
+
+  Future<void> _upload(String type) async {
+    setState(() => _loading = true);
+    try {
+      final svc = ref.read(cookieServiceProvider);
+      final result = await svc.uploadCookie(type);
+      if (mounted) {
+        setState(() => _status = {..._status, type: result});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('上传成功'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('上传失败: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Color _statusColor(CookieStatus? s, ColorScheme cs) {
+    if (s == null || !s.exists) return cs.onSurfaceVariant;
+    if (s.isExpired) return cs.error;
+    final days = s.daysUntilExpiry;
+    if (days != null && days <= 1) return Colors.orange;
+    return Colors.green;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final yt = _status['youtube'];
+    final bili = _status['bilibili'];
+    return _SettingsCard(children: [
+      _SettingsTile(
+        icon: Icons.cookie_outlined,
+        iconColor: Colors.red,
+        title: 'YouTube Cookie',
+        value: yt?.label ?? '加载中...',
+        valueColor: _statusColor(yt, cs),
+        trailing: _loading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : null,
+        onTap: _loading ? null : () => _upload('youtube'),
+      ),
+      _Divider(),
+      _SettingsTile(
+        icon: Icons.cookie_outlined,
+        iconColor: Colors.blue,
+        title: 'B站 Cookie',
+        value: bili?.label ?? '加载中...',
+        valueColor: _statusColor(bili, cs),
+        trailing: _loading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : null,
+        onTap: _loading ? null : () => _upload('bilibili'),
+      ),
+    ]);
   }
 }

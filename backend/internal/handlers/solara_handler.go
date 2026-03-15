@@ -813,6 +813,27 @@ func bilibiliHeaders() map[string]string {
 	}
 }
 
+// loadBilibiliCookie 从 Netscape cookie 文件读取 Cookie 字符串
+func loadBilibiliCookie() string {
+	data, err := os.ReadFile(bilibiliCookiePath)
+	if err != nil {
+		return ""
+	}
+	var parts []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) < 7 {
+			continue
+		}
+		parts = append(parts, fields[5]+"="+fields[6])
+	}
+	return strings.Join(parts, "; ")
+}
+
 func fetchBilibili(apiURL string) (map[string]interface{}, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -821,6 +842,9 @@ func fetchBilibili(apiURL string) (map[string]interface{}, error) {
 	}
 	for k, v := range bilibiliHeaders() {
 		req.Header.Set(k, v)
+	}
+	if cookie := loadBilibiliCookie(); cookie != "" {
+		req.Header.Set("Cookie", cookie)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1523,4 +1547,101 @@ func youtubeLeaderboardDetailByID(id string, limit int) ([]map[string]interface{
 		}
 	}
 	return youtubeSearch("pop music", limit)
+}
+// ── Cookie 管理 ────────────────────────────────────────────────────
+
+const (
+	ytCookiePath      = "/app/yt_cookies.txt"
+	bilibiliCookiePath = "/app/bilibili_cookies.txt"
+)
+
+// UploadCookie 上传 cookie 文件
+// POST /api/cookies/upload?type=youtube|bilibili
+func (h *SolaraHandler) UploadCookie(c *gin.Context) {
+	if !h.isAuthed(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false})
+		return
+	}
+	cookieType := c.Query("type")
+	if cookieType != "youtube" && cookieType != "bilibili" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "type must be youtube or bilibili"})
+		return
+	}
+
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing file"})
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	destPath := ytCookiePath
+	if cookieType == "bilibili" {
+		destPath = bilibiliCookiePath
+	}
+
+	if err := os.WriteFile(destPath, data, 0644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	// 解析过期时间
+	expiry := parseCookieExpiry(data)
+	c.JSON(http.StatusOK, gin.H{"success": true, "expiry": expiry})
+}
+
+// CookieStatus 查询 cookie 状态
+// GET /api/cookies/status
+func (h *SolaraHandler) CookieStatus(c *gin.Context) {
+	if !h.isAuthed(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"youtube":  cookieFileStatus(ytCookiePath),
+		"bilibili": cookieFileStatus(bilibiliCookiePath),
+	})
+}
+
+// cookieFileStatus 返回 cookie 文件状态
+func cookieFileStatus(path string) map[string]interface{} {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]interface{}{"exists": false}
+	}
+	expiry := parseCookieExpiry(data)
+	info := map[string]interface{}{"exists": true, "expiry": expiry}
+	return info
+}
+
+// parseCookieExpiry 从 Netscape cookie 文件中提取最早过期时间（Unix 时间戳）
+// 格式：domain	flag	path	secure	expiry	name	value
+func parseCookieExpiry(data []byte) int64 {
+	lines := strings.Split(string(data), "\n")
+	var earliest int64 = 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) < 7 {
+			continue
+		}
+		var ts int64
+		fmt.Sscanf(parts[4], "%d", &ts)
+		if ts <= 0 {
+			continue
+		}
+		if earliest == 0 || ts < earliest {
+			earliest = ts
+		}
+	}
+	return earliest
 }

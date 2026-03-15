@@ -127,6 +127,10 @@ func (r *Router) SetupRoutes(engine *gin.Engine) {
 	engine.GET("/proxy", r.handlers.Solara.Proxy)
 	engine.GET("/imgproxy", r.handlers.Solara.ImgProxy)
 
+	// Cookie 管理路由
+	engine.POST("/api/cookies/upload", r.handlers.Solara.UploadCookie)
+	engine.GET("/api/cookies/status", r.handlers.Solara.CookieStatus)
+
 	// Discover 路由
 	discover := engine.Group("/api/discover")
 	{
