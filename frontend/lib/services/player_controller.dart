@@ -186,11 +186,17 @@ class PlayerController extends StateNotifier<PlayerState> {
         // Jamendo urlId 直接是 MP3 URL
         url = song.urlId;
       } else {
-        url = await repository.fetchSongUrl(
+        final rawUrl = await repository.fetchSongUrl(
           songId: song.id,
           source: song.source,
           quality: quality,
         );
+        // B站音频 URL 需要 Referer，通过后端代理播放
+        if (song.source == 'bilibili' && rawUrl.startsWith('http')) {
+          url = '${AppConfig.baseUrl}/proxy?url=${Uri.encodeComponent(rawUrl)}';
+        } else {
+          url = rawUrl;
+        }
       }
       await engine.setSource(url);
       engine.play().catchError((e) {

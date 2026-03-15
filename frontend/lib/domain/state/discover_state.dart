@@ -64,7 +64,7 @@ class DiscoverNotifier extends StateNotifier<DiscoverState> {
     await loadAll(source: source);
   }
 
-  Future<void> loadAll({String source = 'kw'}) async {
+  Future<void> loadAll({String source = 'netease'}) async {
     state = DiscoverState(
       loading: true,
       loadedSource: source,

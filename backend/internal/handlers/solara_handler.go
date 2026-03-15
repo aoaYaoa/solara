@@ -384,13 +384,24 @@ func (h *SolaraHandler) neteaseGetSongUrl(c *gin.Context) {
 
 func (h *SolaraHandler) proxyKuwoAudio(c *gin.Context, targetURL string) {
 	parsed, err := url.Parse(targetURL)
-	if err != nil || !strings.HasSuffix(parsed.Hostname(), "kuwo.cn") {
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target"})
 		return
 	}
-	parsed.Scheme = "http"
+	host := parsed.Hostname()
+	var referer string
+	switch {
+	case strings.HasSuffix(host, "kuwo.cn"):
+		parsed.Scheme = "http"
+		referer = "https://www.kuwo.cn/"
+	case strings.HasSuffix(host, "bilivideo.com") || strings.HasSuffix(host, "bilivideo.cn") || strings.HasSuffix(host, "bilibili.com"):
+		referer = "https://www.bilibili.com/"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target"})
+		return
+	}
 	extraHeaders := map[string]string{
-		"Referer": "https://www.kuwo.cn/",
+		"Referer": referer,
 	}
 	h.proxyRequest(c, parsed.String(), extraHeaders)
 }
