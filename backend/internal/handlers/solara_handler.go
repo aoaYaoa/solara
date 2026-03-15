@@ -317,9 +317,15 @@ func (h *SolaraHandler) Proxy(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported types for jamendo"})
 		}
 	default:
-		// 国内四源：透传到 music-api
+		// 国内四源：透传到 music-api，需将内部 source 名映射到上游 API 名
+		sourceRemap := map[string]string{
+			"tencent": "qq",
+		}
 		params := c.Request.URL.Query()
 		params.Del("url")
+		if remapped, ok := sourceRemap[params.Get("source")]; ok {
+			params.Set("source", remapped)
+		}
 		targetURL := musicAPIBase + "?" + params.Encode()
 		h.proxyRequest(c, targetURL, nil)
 	}
