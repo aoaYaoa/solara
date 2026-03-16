@@ -32,16 +32,22 @@ class ThemeController extends StateNotifier<ThemeState> {
 
   Future<void> updateFromArtwork(String? url) async {
     if (url == null || url.isEmpty || url == state.artworkUrl) return;
-    try {
-      final palette = await PaletteGenerator.fromImageProvider(
-        NetworkImage(proxyImageUrl(url)),
-        maximumColorCount: 12,
-      );
+    // 先立即更新封面 URL，让 UI 马上开始渲染图片，不等调色板
+    state = state.copyWith(artworkUrl: url);
+    // 后台异步提取调色板，完成后再更新主题色
+    _extractPaletteAsync(url);
+  }
+
+  void _extractPaletteAsync(String url) {
+    PaletteGenerator.fromImageProvider(
+      NetworkImage(proxyImageUrl(url)),
+      maximumColorCount: 12,
+    ).then((palette) {
+      // 如果 URL 已经切换到下一首歌，放弃旧结果
+      if (state.artworkUrl != url) return;
       final color = palette.dominantColor?.color ?? palette.vibrantColor?.color ?? state.seedColor;
-      state = state.copyWith(seedColor: color, artworkUrl: url);
-    } catch (_) {
-      state = state.copyWith(artworkUrl: url);
-    }
+      state = state.copyWith(seedColor: color);
+    }).catchError((_) {});
   }
 }
 

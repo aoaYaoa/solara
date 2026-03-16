@@ -32,6 +32,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   int _lastLyricIndex = -1;
   bool _isDragging = false;
   double _dragValue = 0.0;
+  double? _lyricVerticalPadding;
 
   @override
   void initState() {
@@ -55,6 +56,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         setState(() => _currentPage = page);
       }
     });
+
+    // 歌词滚动副作用移出 build，用 listen 单独监听
+    ref.listenManual(
+      playerControllerProvider.select((s) => s.currentLyricIndex),
+      (_, index) {
+        if (_currentPage != 1 || index < 0) return;
+        if (index == _lastLyricIndex) return;
+        _lastLyricIndex = index;
+        final total = ref.read(playerControllerProvider).lyrics.length;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _scrollToLyric(index, total);
+        });
+      },
+    );
   }
 
   @override
@@ -397,7 +412,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerControllerProvider);
+    // 用 select 精细订阅，避免 position/lyricIndex 每 500ms 触发整页 rebuild
+    final song = ref.watch(playerControllerProvider.select((s) => s.currentSong));
+    final position = ref.watch(playerControllerProvider.select((s) => s.position));
+    final duration = ref.watch(playerControllerProvider.select((s) => s.duration)) ?? Duration.zero;
+    final lyrics = ref.watch(playerControllerProvider.select((s) => s.lyrics));
+    final lyricIndex = ref.watch(playerControllerProvider.select((s) => s.currentLyricIndex));
+    final isPlaying = ref.watch(playerControllerProvider.select((s) => s.isPlaying));
+    final artworkUrl = ref.watch(playerControllerProvider.select((s) => s.artworkUrl));
     final controller = ref.read(playerControllerProvider.notifier);
     final queueState = ref.watch(queueStateProvider);
     final queueNotifier = ref.read(queueStateProvider.notifier);
@@ -406,25 +428,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final favorites = ref.read(favoritesStateProvider.notifier);
     final colorScheme = Theme.of(context).colorScheme;
 
-    final song = playerState.currentSong;
-    final position = playerState.position;
-    final duration = playerState.duration ?? Duration.zero;
-    final lyrics = playerState.lyrics;
-    final lyricIndex = playerState.currentLyricIndex;
-    final isPlaying = playerState.isPlaying;
     final playMode = queueState.playMode;
     final isFav =
         song != null && favoritesState.favorites.any((s) => s.id == song.id);
 
     _syncPlayState(isPlaying);
-
-    // 歌词自动滚动 — 仅在歌词页时触发
-    if (_currentPage == 1 && lyricIndex != _lastLyricIndex && lyricIndex >= 0) {
-      _lastLyricIndex = lyricIndex;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToLyric(lyricIndex, lyrics.length);
-      });
-    }
 
     final primaryColor = colorScheme.primary;
     final bgColor = Color.alphaBlend(
@@ -458,7 +466,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         controller: _pageController,
                         children: [
                           _buildVinylDiscPage(
-                            playerState,
+                            artworkUrl,
                             primaryColor,
                           ),
                           _buildLyricsPage(lyrics, lyricIndex, controller),
@@ -539,7 +547,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   // ── 唱片页 ──────────────────────────────────────────
   Widget _buildVinylDiscPage(
-    dynamic playerState,
+    String? artworkUrl,
     Color primaryColor,
   ) {
     return LayoutBuilder(
@@ -572,11 +580,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   ],
                 ),
                 child: ClipOval(
-                  child: playerState.artworkUrl != null
+                  child: artworkUrl != null
                       ? Image.network(
-                          proxyImageUrl(playerState.artworkUrl!),
+                          proxyImageUrl(artworkUrl),
                           fit: BoxFit.cover,
-                          cacheWidth: 600,
+                          cacheWidth: 300,
                           errorBuilder: (_, __, ___) =>
                               _defaultCover(primaryColor),
                         )
@@ -609,7 +617,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       itemCount: lyrics.length,
       itemExtent: 44,
       padding: EdgeInsets.symmetric(
-        vertical: MediaQuery.of(context).size.height * 0.1,
+        vertical: _lyricVerticalPadding ??= MediaQuery.of(context).size.height * 0.1,
       ),
       itemBuilder: (context, index) {
         final line = lyrics[index] as LyricLine;

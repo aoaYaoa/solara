@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/song.dart';
 import '../domain/state/history_state.dart';
@@ -224,44 +225,50 @@ class PlayerController extends StateNotifier<PlayerState> {
       // 后台等待 duration 可用后再次更新（just_audio 异步加载）
       _updateDurationWhenReady(song, immediateArtworkUrl);
 
-      // 后台加载歌词
-      try {
-        final lyricRaw = await repository.fetchLyric(
-          songId: song.lyricId.isNotEmpty ? song.lyricId : song.id,
-          source: song.source,
-        );
-        final lyrics = LyricParser.parse(lyricRaw);
-        state = state.copyWith(lyrics: lyrics);
-      } catch (_) {}
+      // 并行加载歌词 + 封面 URL，互不阻塞
+      final lyricFuture = repository.fetchLyric(
+        songId: song.lyricId.isNotEmpty ? song.lyricId : song.id,
+        source: song.source,
+      ).then((raw) {
+        if (state.currentSong?.id == song.id) {
+          state = state.copyWith(lyrics: LyricParser.parse(raw));
+        }
+      }).catchError((_) {});
 
-      // 后台获取真实封面图 URL（fetchPicUrl 返回实际图片地址，而非代理JSON接口）
-      try {
-        String? realArtworkUrl;
-        if (song.picUrl != null && song.picUrl!.isNotEmpty) {
-          final encoded = Uri.encodeComponent(song.picUrl!);
-          realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
-        } else if (song.picId.isNotEmpty) {
-          final fetched = await repository.fetchPicUrl(picId: song.picId, source: song.source);
-          if (fetched.isNotEmpty) {
-            if (fetched.startsWith('http') && (fetched.contains('.126.net') || fetched.contains('.163.com') || fetched.contains('.qq.com'))) {
-              realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=${Uri.encodeComponent(fetched)}';
-            } else {
-              realArtworkUrl = fetched;
+      final artworkFuture = () async {
+        try {
+          String? realArtworkUrl;
+          if (song.picUrl != null && song.picUrl!.isNotEmpty) {
+            final encoded = Uri.encodeComponent(song.picUrl!);
+            realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=$encoded';
+          } else if (song.picId.isNotEmpty) {
+            final fetched = await repository.fetchPicUrl(picId: song.picId, source: song.source);
+            if (fetched.isNotEmpty) {
+              if (fetched.startsWith('http') && (fetched.contains('.126.net') || fetched.contains('.163.com') || fetched.contains('.qq.com'))) {
+                realArtworkUrl = '${AppConfig.baseUrl}/imgproxy?url=${Uri.encodeComponent(fetched)}';
+              } else {
+                realArtworkUrl = fetched;
+              }
             }
           }
-        }
-        final artworkUrl = realArtworkUrl ?? immediateArtworkUrl ?? '';
-        if (artworkUrl.isNotEmpty) {
-          await themeController.updateFromArtwork(artworkUrl);
-          state = state.copyWith(artworkUrl: artworkUrl);
-          audioHandler.setNowPlaying(
-            title: song.name,
-            artist: song.artist,
-            artworkUrl: artworkUrl,
-            duration: engine.duration,
-          );
-        }
-      } catch (_) {}
+          final artworkUrl = realArtworkUrl ?? immediateArtworkUrl ?? '';
+          if (artworkUrl.isNotEmpty && state.currentSong?.id == song.id) {
+            await themeController.updateFromArtwork(artworkUrl);
+            if (state.currentSong?.id == song.id) {
+              state = state.copyWith(artworkUrl: artworkUrl);
+              audioHandler.setNowPlaying(
+                title: song.name,
+                artist: song.artist,
+                artworkUrl: artworkUrl,
+                duration: engine.duration,
+              );
+            }
+          }
+        } catch (_) {}
+      }();
+
+      // 歌词和封面完全后台加载，不阻塞 playSong 返回
+      unawaited(Future.wait([lyricFuture, artworkFuture]));
 
       onSongPlayed?.call(song);
     } catch (e, st) {
@@ -411,6 +418,31 @@ class PlayerController extends StateNotifier<PlayerState> {
     }
     setCurrentQueueIndex?.call(nextIndex);
     await playSong(queue[nextIndex], quality: quality);
+    // 预热再下一首的封面进图片缓存
+    _precacheNextArtwork(queue, nextIndex, playMode);
+  }
+
+  void _precacheNextArtwork(List<Song> queue, int currentIndex, PlayMode playMode) {
+    if (queue.length <= 1) return;
+    final nextIndex = playMode == PlayMode.random
+        ? _random.nextInt(queue.length)
+        : (currentIndex + 1) % queue.length;
+    final next = queue[nextIndex];
+    String? url;
+    if (next.picUrl != null && next.picUrl!.isNotEmpty) {
+      url = '${AppConfig.baseUrl}/imgproxy?url=${Uri.encodeComponent(next.picUrl!)}';
+    } else if (next.picId.isNotEmpty) {
+      url = repository.buildPicProxyUrl(picId: next.picId, source: next.source);
+    }
+    if (url != null) {
+      final imageProvider = NetworkImage(url);
+      imageProvider.obtainKey(ImageConfiguration.empty).then((key) {
+        final cache = PaintingBinding.instance.imageCache;
+        if (!cache.containsKey(key)) {
+          imageProvider.resolve(ImageConfiguration.empty);
+        }
+      }).ignore();
+    }
   }
 
   Future<void> skipPrevious({
