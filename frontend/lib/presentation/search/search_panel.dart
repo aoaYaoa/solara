@@ -440,7 +440,7 @@ class _SearchPanelState extends ConsumerState<SearchPanel> {
                   final item = discoverState.leaderboards[index];
                   return _LeaderboardCard(
                     item: item,
-                    source: ref.read(settingsStateProvider).discoverSource,
+                    source: discoverState.loadedSource ?? ref.read(settingsStateProvider).discoverSource,
                   );
                 },
               ),
