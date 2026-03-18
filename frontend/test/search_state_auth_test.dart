@@ -25,19 +25,14 @@ class AuthFailRepo extends SolaraRepository {
 }
 
 void main() {
-  test('SearchStateNotifier triggers auth callback on auth error', () async {
-    var logoutCalled = false;
+  test('SearchStateNotifier sets error state when auth fails after interceptor retry', () async {
     final notifier = SearchStateNotifier(
       repository: AuthFailRepo(),
-      onAuthRequired: () {
-        logoutCalled = true;
-      },
     );
 
     await notifier.search('hello');
 
-    expect(logoutCalled, isTrue);
     expect(notifier.state.loading, isFalse);
-    expect(notifier.state.error, contains('登录已失效'));
+    expect(notifier.state.error, isNotNull);
   });
 }

@@ -15,7 +15,6 @@ import '../platform/audio_engine.dart';
 import '../platform/just_audio_engine.dart';
 import '../services/lyric_parser.dart';
 import '../services/theme_controller.dart';
-import '../services/auth_service.dart';
 import '../services/app_config.dart';
 import '../services/persistent_state_service.dart';
 import '../main.dart' show audioHandler, sharedPlayer;
@@ -24,7 +23,6 @@ class PlayerController extends StateNotifier<PlayerState> {
   final SolaraRepository repository;
   final AudioEngine engine;
   final ThemeController themeController;
-  final AuthStateNotifier auth;
   final PersistentStateService persistence;
   final void Function(Song)? onSongPlayed;
   Timer? _timer;
@@ -44,7 +42,6 @@ class PlayerController extends StateNotifier<PlayerState> {
     required this.repository,
     required this.engine,
     required this.themeController,
-    required this.auth,
     required this.persistence,
     this.onSongPlayed,
     this.getQueue,
@@ -100,8 +97,13 @@ class PlayerController extends StateNotifier<PlayerState> {
   void _tick() {
     // 加载新歌曲期间不更新，避免引擎返回旧歌曲的 position/duration 覆盖新状态
     if (_isLoading) return;
-    // 引擎未加载（duration为null且未播放）时不更新，保留启动恢复的 position/duration
-    if (engine.duration == null && !engine.isPlaying) return;
+    // 同步引擎播放状态（被其他 app 打断时引擎会暂停，需及时反映到 UI）
+    final enginePlaying = engine.isPlaying;
+    if (enginePlaying != state.isPlaying && !_isLoading) {
+      state = state.copyWith(isPlaying: enginePlaying);
+    }
+    // 引擎未加载（duration为null且未播放）时不更新 position/duration，保留启动恢复的值
+    if (engine.duration == null && !enginePlaying) return;
     final position = engine.position;
     final duration = engine.duration ?? state.duration;
     if (position != state.position || duration != state.duration) {
@@ -275,16 +277,6 @@ class PlayerController extends StateNotifier<PlayerState> {
       _isLoading = false;
       _isSwitching = false;
       print('[PlayerController] playSong error: $e\n$st');
-      if (e is AuthRequiredException) {
-        final relogined = await auth.autoRelogin();
-        if (relogined) {
-          // 重新登录成功，重试播放
-          return playSong(song, quality: quality);
-        }
-        auth.logout();
-        state = state.copyWith(error: '登录已失效，请重新登录', isPlaying: false);
-        return;
-      }
       state = state.copyWith(error: e.toString(), isPlaying: false);
     }
   }
@@ -495,7 +487,6 @@ final playerControllerProvider =
           repository: ref.watch(solaraRepositoryProvider),
           engine: ref.watch(audioEngineProvider),
           themeController: ref.read(themeControllerProvider.notifier),
-          auth: ref.read(authStateProvider.notifier),
           onSongPlayed: (song) {
             final historyNotifier = ref.read(historyStateProvider.notifier);
             historyNotifier.addEntry(song);

@@ -9,7 +9,6 @@ import 'package:solara_flutter/data/solara_repository.dart';
 import 'package:solara_flutter/data/api/solara_api.dart';
 import 'package:solara_flutter/data/api/api_client.dart';
 import 'package:solara_flutter/services/theme_controller.dart';
-import 'package:solara_flutter/services/auth_service.dart';
 import 'package:dio/dio.dart';
 
 class FakeRepo extends SolaraRepository {
@@ -90,9 +89,6 @@ class FakeThemeController extends ThemeController {
   Future<void> updateFromArtwork(String? url) async {}
 }
 
-class FakeAuth extends AuthStateNotifier {
-  FakeAuth() : super(client: ApiClient(baseUrl: 'https://example.com', dio: Dio()));
-}
 
 void main() {
   test('PlayerController playSong updates state', () async {
@@ -100,7 +96,6 @@ void main() {
       repository: FakeRepo(),
       engine: FakeEngine(),
       themeController: FakeThemeController(),
-      auth: FakeAuth(),
       persistence: PersistentStateService(storage: StorageService()),
     );
     final song = Song(

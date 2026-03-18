@@ -15,7 +15,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   final ApiClient client;
 
   AuthStateNotifier({required this.client})
-    : super(const AuthState(isAuthed: false));
+    : super(const AuthState(isAuthed: false)) {
+    client.onTokenExpired = autoRelogin;
+  }
 
   Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();

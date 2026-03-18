@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../../data/solara_repository.dart';
 import '../../data/providers.dart';
-import '../../services/auth_service.dart';
 import '../../services/providers.dart';
 
 class SearchState {
@@ -64,9 +63,7 @@ class SearchState {
 
 class SearchStateNotifier extends StateNotifier<SearchState> {
   final SolaraRepository repository;
-  final void Function()? onAuthRequired;
-
-  SearchStateNotifier({required this.repository, this.onAuthRequired})
+  SearchStateNotifier({required this.repository})
     : super(SearchState.initial());
 
   void Function(List<String>)? _onHistoryChanged;
@@ -119,11 +116,6 @@ class SearchStateNotifier extends StateNotifier<SearchState> {
         hasMore: results.isNotEmpty,
       );
     } catch (e) {
-      if (e is AuthRequiredException) {
-        onAuthRequired?.call();
-        state = state.copyWith(loading: false, error: '登录已失效，请重新登录');
-        return;
-      }
       state = state.copyWith(loading: false, error: e.toString());
     }
   }
@@ -146,11 +138,6 @@ class SearchStateNotifier extends StateNotifier<SearchState> {
         hasMore: results.isNotEmpty,
       );
     } catch (e) {
-      if (e is AuthRequiredException) {
-        onAuthRequired?.call();
-        state = state.copyWith(loading: false, error: '登录已失效，请重新登录');
-        return;
-      }
       state = state.copyWith(loading: false, error: e.toString());
     }
   }
@@ -168,7 +155,6 @@ final searchStateProvider =
     StateNotifierProvider<SearchStateNotifier, SearchState>((ref) {
       final notifier = SearchStateNotifier(
         repository: ref.watch(solaraRepositoryProvider),
-        onAuthRequired: () => ref.read(authStateProvider.notifier).logout(),
       );
       // 持久化搜索历史
       final persistence = ref.read(persistentStateProvider);

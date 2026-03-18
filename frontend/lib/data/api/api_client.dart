@@ -7,6 +7,9 @@ class ApiClient {
   final Dio dio;
   String? _token;
 
+  /// 当 token 过期时调用，返回 true 表示重新登录成功
+  Future<bool> Function()? onTokenExpired;
+
   ApiClient({required this.baseUrl, Dio? dio})
     : dio =
           dio ??
@@ -29,6 +32,28 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $_token';
           }
           handler.next(options);
+        },
+        onResponse: (response, handler) async {
+          final status = response.statusCode ?? 0;
+          final location = response.headers.value('location') ?? '';
+          final isAuthFail =
+              status == 401 ||
+              status == 403 ||
+              status == 302 ||
+              location.contains('/login');
+          final isRetry = response.requestOptions.extra['_retry'] == true;
+          if (isAuthFail && !isRetry && onTokenExpired != null) {
+            final relogined = await onTokenExpired!();
+            if (relogined) {
+              try {
+                final opts = response.requestOptions;
+                opts.extra['_retry'] = true;
+                final retry = await this.dio.fetch(opts);
+                return handler.resolve(retry);
+              } catch (_) {}
+            }
+          }
+          handler.next(response);
         },
       ),
     );
